@@ -7,3 +7,4 @@
 **/*.rds
 **/*.csv
 
+.Rproj.user
