@@ -1,0 +1,13 @@
+name: SynthBench
+title: SynthBench
+username: mattfaiello
+account: mattfaiello
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 17164971
+bundleId: 11867811
+url: https://mattfaiello.shinyapps.io/SynthBench/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: prep
