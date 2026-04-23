@@ -42,21 +42,21 @@ sb_result_tab <- function(title, output_ui, caption) {
 
 # Plain-language copy used across the interface
 header_subtitle <- paste(
-  "Build a historical benchmark for each school-year with a prediction-focused model,",
-  "then see how benchmark-adjusted results move when you change the comparison frame."
+  "Build a historical benchmark for each school-year,",
+  "then see how the results change when you change the comparison frame."
 )
 
 header_note <- paste(
   "This tool is for transparent benchmark-adjusted comparison.",
-  "The goal is not to find one final adjustment rule, but to see whether conclusions stay similar across reasonable comparison frames.",
-  "It does not tell you what caused results, estimate policy effects, or produce a stand-alone accountability ranking."
+  "It is meant to show whether conclusions stay similar across reasonable comparison frames, not to find one final adjustment rule.",
+  "It does not explain what caused results, estimate policy effects, or serve as a stand-alone accountability judgment."
 )
 
 sidebar_intro <- paste(
   "Pick the historical dataset and the comparison settings here.",
-  "The app trains benchmark models on the full selected assessment-grade history that meets the student-count threshold,",
+  "The app fits benchmark models on the full selected assessment-and-grade dataset that meets the student-count threshold,",
   "builds benchmark scores from held-out predictions,",
-  "and then shows comparison views for the year you select."
+  "and then shows comparison views for the year you choose."
 )
 
 step1_note <- paste(
@@ -70,8 +70,9 @@ min_students_note <- paste(
 )
 
 step2_note <- paste(
-  "These settings control which year is highlighted in the displays",
-  "and how large a benchmark gap has to be before it is labeled above, near, or below the benchmark."
+  "These settings help define the benchmark.",
+  "They control which year is highlighted in the displays",
+  "and how large a benchmark gap has to be before it is labeled above, near, or below benchmark."
 )
 
 year_callout <- paste(
@@ -86,32 +87,33 @@ year_note <- paste(
 
 neutral_band_note <- paste(
   "The neutral band is a practical reading aid, not a significance test.",
-  "A wider band puts more school-years in the near-benchmark category and fewer in the above- or below-benchmark categories.",
-  "The width is based on the residual standard deviation, not the observed-score standard deviation."
+  "A wider band treats more benchmark gaps as near benchmark and fewer as above or below benchmark.",
+  "Its width is based on the residual standard deviation, not the observed-score standard deviation."
 )
 
 model_subtitle <- paste(
-  "Each model uses the school-year average scale score as the target and a different set of features.",
-  "The app trains a regularized regression model on the selected historical data using the comparison frame you define,",
-  "while allowing those relationships to vary by year, then compares the observed score to the benchmark prediction."
+  "Each model uses school-year average scale score as the outcome and a different set of comparison features.",
+  "The app builds a historical benchmark from the selected data and comparison frame,",
+  "then compares the observed score with the benchmark prediction."
 )
 
 model_method_callout <- paste(
   "The boxes you check here define the model features and the comparison frame.",
-  "For each model, the target is the school-year average score.",
-  "The app trains a ridge regression model on the selected historical dataset using school year, the benchmark features you choose, and year-by-feature interactions.",
-  "It uses repeated grouped cross-validation, so each school's benchmark is based on held-out predictions in a way that mirrors the real benchmarking task."
+  "For each model, the outcome is the school-year average score.",
+  "The app builds the benchmark using school year, the benchmark features you choose, and year-specific adjustments.",
+  "Those features define the comparison being made; they are not being treated as the true causes of performance.",
+  "It uses repeated grouped cross-validation, so each school's benchmark is based on held-out school histories rather than the same rows used to fit that run."
 )
 
 results_subtitle <- paste(
-  "Review how benchmark results change across model definitions in the selected year.",
-  "Most tabs follow the tracked baseline schools, while the full results tab shows all schools."
+  "Review how results change across benchmark definitions in the selected year.",
+  "Most tabs follow the tracked baseline schools, while the full results tab includes all schools."
 )
 
 results_guide <- paste(
   "First, identify the comparison frame from the selected scope and benchmark groups.",
-  "Second, compare the observed score, benchmark score, and residual.",
-  "Third, use the within-year rank, scaled residual, and direction label to judge whether the interpretation changes across model definitions."
+  "Second, compare the observed score, benchmark score, and difference from benchmark (residual).",
+  "Third, use the within-year rank, scaled benchmark gap, and direction label to judge whether the interpretation changes across model definitions."
 )
 
 results_placeholder_title <- "Ready to run the benchmark models"
@@ -122,7 +124,7 @@ results_placeholder_body <- paste(
 
 ui <- fluidPage(
   tags$head(
-    tags$title("Synthetic Benchmarking"),
+    tags$title("Model-Based Benchmarking"),
     tags$meta(name = "viewport", content = "width=device-width, initial-scale=1"),
     tags$link(rel = "stylesheet", type = "text/css", href = "style.css")
   ),
@@ -135,8 +137,8 @@ ui <- fluidPage(
       
       div(
         class = "sb-header sb-card",
-        div(class = "sb-eyebrow", "Historical benchmarking tool"),
-        h1(class = "sb-title", "Synthetic Benchmarking"),
+        div(class = "sb-eyebrow", "Historical assessment benchmarking tool"),
+        h1(class = "sb-title", "Model-Based Benchmarking"),
         p(class = "sb-subtitle", header_subtitle),
         p(class = "sb-header-note", header_note)
       ),
@@ -388,7 +390,7 @@ ui <- fluidPage(
                         title = "Benchmarking overview",
                         output_ui = gt_output("rank_summary_tbl"),
                         caption = paste(
-                          "Summarizes how the tracked baseline schools change across benchmark definitions",
+                          "Summarizes how the baseline set of tracked schools changes across benchmark definitions",
                           "in the selected year."
                         )
                       ),
@@ -421,10 +423,10 @@ ui <- fluidPage(
                       ),
                       
                       sb_result_tab(
-                        title = "Scores and residuals",
+                        title = "Scores and benchmark gaps",
                         output_ui = plotOutput("metric_facets", height = "70vh"),
                         caption = paste(
-                          "Compares benchmark predictions, residuals, scaled residuals, and within-year ranks",
+                          "Compares benchmark predictions, differences from benchmark, scaled residuals, and within-year ranks",
                           "for the tracked baseline schools across benchmark definitions."
                         )
                       ),
@@ -444,7 +446,7 @@ ui <- fluidPage(
                         ),
                         caption = paste(
                           "Lists all schools in the selected year for the fitted benchmark models, including observed score,",
-                          "benchmark score, residual, scaled residual, within-year rank, and direction label."
+                          "benchmark score, difference from benchmark (residual), scaled residual, within-year rank, and direction label."
                         )
                       )
                     )

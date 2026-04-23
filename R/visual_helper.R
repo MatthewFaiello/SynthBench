@@ -79,7 +79,7 @@ theme_modelcomp <- function(base_size = PLOT_SETTINGS$base_size) {
         color = dde_blue_dark,
         size = rel(1.25)
       ),
-      plot.subtitle = ggtext::element_textbox_simple(
+      plot.subtitle = element_textbox_simple(
         color = dde_muted,
         size = rel(0.9),
         lineheight = 1.15,

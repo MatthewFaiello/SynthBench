@@ -1,12 +1,12 @@
-# SynthBench
+# Model-Based Benchmarking
 
-Synthetic assessment benchmarking app built in **R Shiny**.
+Historical assessment benchmarking app built in **R Shiny**.
 
 ## Overview
 
-SynthBench is a historical benchmarking tool for comparing school-level average scale scores under user-defined comparison frames. The app fits benchmark models to a selected assessment-and-grade dataset, then compares observed school-year performance to model-based benchmark predictions.
+Model-Based Benchmarking is a historical benchmarking tool for comparing school-level average scale scores under user-defined comparison frames. The app fits benchmark models to a selected assessment-and-grade dataset, then compares observed school-year performance with model-based benchmark predictions.
 
-The goal is transparent, benchmark-adjusted comparison. It is **not** designed for causal inference, policy-effect estimation, or future-year forecasting.
+The goal is transparent, benchmark-adjusted comparison. The app is **not** designed for causal inference, policy-effect estimation, future-year forecasting, or stand-alone accountability judgment.
 
 ## What the app does
 
@@ -24,7 +24,7 @@ The app then:
 2. filters out school-years below the tested-student threshold
 3. fits benchmark models using ridge regression
 4. generates out-of-fold benchmark predictions using repeated grouped cross-validation by school
-5. computes benchmark-adjusted scores, residuals, ranks, and direction labels
+5. computes benchmark-adjusted scores, benchmark gaps, ranks, and direction labels
 6. compares results across benchmark definitions for the selected year
 
 ## Main outputs
@@ -35,10 +35,10 @@ The app currently includes six main result views:
 - **Rank comparison**
 - **Rank movement**
 - **Average rank movement**
-- **Scores and residuals**
+- **Scores and benchmark gaps**
 - **Full results** table with download option
 
-The comparison plots focus on tracked schools from the selected year, while the full results table includes all schools in that year.
+Most comparison plots focus on tracked baseline schools from the selected year, while the full results table includes all schools in that year.
 
 ## Current benchmark groups
 
@@ -87,8 +87,8 @@ SynthBench/
 ## Key files
 
 - **global.R** loads packages and sources the app modules
-- **ui.R** defines the app interface
-- **server.R** manages reactivity, model runs, and outputs
+- **ui.R** defines the app interface and user-facing copy
+- **server.R** manages reactivity, model runs, outputs, and downloads
 - **R/config.R** stores app settings and default model definitions
 - **R/data.R** loads the app datasets and builds the scope lookup table
 - **R/helpers.R** contains helper functions for UI selections and model toggles
@@ -114,13 +114,13 @@ The app expects the following files in `input_data/`:
 5. Run the app from the project root
 
 ```r
-install.packages(c("shiny", "tidyverse", "glmnet", "gt", "DT", "ggtext"))
+install.packages(c("shiny", "tidyverse", "glmnet", "gt", "DT", "ggtext", "scales"))
 shiny::runApp()
 ```
 
 ## Method notes
 
-SynthBench is built for **historical benchmarking only**.
+Model-Based Benchmarking is built for **historical benchmarking only**.
 
 A few important interpretation points:
 
@@ -128,6 +128,8 @@ A few important interpretation points:
 - the selected year controls the comparison views, not the full model-training sample
 - the neutral band is a practical reading aid, not a significance test
 - the app is meant to show whether conclusions are sensitive to the chosen comparison frame
+- benchmark-adjusted results are not causal explanations of school performance
+- the app is not a replacement for formal accountability systems
 
 ## Current defaults
 
@@ -136,7 +138,7 @@ Current core defaults include:
 - ridge regression via `glmnet`
 - `lambda_choice = "lambda.1se"`
 - `nfolds = 10`
-- `cv_repeats = 20`
+- `cv_repeats = 5`
 - `neutral_band_multiplier = 1/3`
 - `comparison_top_n = 10`
 
@@ -147,21 +149,22 @@ Default model definitions are:
 - **Alt 2**: low income + SPED
 - **Alt 3**: low income + ELL + SPED
 
-## Beta status
+## Interface language
 
-This app should still be treated as a working prototype. The interface and core workflow are in place, but the app is still being documented and refined.
+The app uses plain-language labels where possible:
 
-## Deployment notes
+- **Benchmark score** = the model-based score for the selected school-year under the chosen comparison frame
+- **Benchmark gap** = observed score minus benchmark-predicted score
+- **Direction label** = above expected, near expected, or below expected
+- **Within-year rank** = the school’s benchmark-adjusted position relative to other schools in the same year
 
-If you deploy the app, keep the project root structure intact so it can find:
+## Development notes
 
-- `R/`
-- `www/`
-- `input_data/`
-- `global.R`
-- `ui.R`
-- `server.R`
+A few implementation choices are intentional:
 
-## Contact
+- school year is always included in the model
+- benchmark groups help define the comparison frame rather than the “true causes” of performance
+- repeated grouped cross-validation keeps school histories together within folds
+- final benchmark scores are aggregated from held-out predictions across repeats
 
-Questions, feedback, and bug reports are welcome.
+These choices are meant to support transparent comparison and more stable benchmarking, not one final adjusted truth.
