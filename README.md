@@ -114,7 +114,7 @@ The app expects the following files in `input_data/`:
 5. Run the app from the project root
 
 ```r
-install.packages(c("shiny", "tidyverse", "glmnet", "gt", "DT", "ggtext", "scales"))
+install.packages(c("shiny", "tidyverse", "glmnet", "gt", "DT", "ggtext", "scales", "openxlsx"))
 shiny::runApp()
 ```
 
