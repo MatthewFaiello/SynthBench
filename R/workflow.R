@@ -13,18 +13,18 @@
 
 weighted_metrics <- function(y, pred, w) {
   ok <- is.finite(y) & is.finite(pred) & is.finite(w)
-
+  
   y <- y[ok]
   pred <- pred[ok]
   w <- w[ok]
-
+  
   w_sum <- sum(w)
   resid <- y - pred
   ybar <- sum(w * y) / w_sum
-
+  
   sse <- sum(w * resid^2)
   sst <- sum(w * (y - ybar)^2)
-
+  
   tibble(
     wrmse = sqrt(sse / w_sum),
     wmae = sum(w * abs(resid)) / w_sum,
@@ -34,76 +34,76 @@ weighted_metrics <- function(y, pred, w) {
 
 make_school_foldid <- function(dat, seed, nfolds) {
   set.seed(seed)
-
+  
   schools <- sort(unique(dat[[SETTINGS$school_id]]))
   k <- min(nfolds, length(schools))
-
+  
   school_fold <- sample(rep(seq_len(k), length.out = length(schools)))
   names(school_fold) <- schools
-
+  
   as.integer(school_fold[match(dat[[SETTINGS$school_id]], schools)])
 }
 
 safe_sd <- function(x) {
   x <- x[is.finite(x)]
-
+  
   if (length(x) <= 1) {
     return(0)
   }
-
+  
   stats::sd(x)
 }
 
 most_common <- function(x) {
   x <- x[!is.na(x)]
-
+  
   if (length(x) == 0) {
     return(NA_character_)
   }
-
+  
   names(sort(table(x), decreasing = TRUE))[1]
 }
 
 consistency_rate <- function(x) {
   x <- x[!is.na(x)]
-
+  
   if (length(x) == 0) {
     return(NA_real_)
   }
-
+  
   max(prop.table(table(x)))
 }
 
 weighted_residual_sd <- function(resid, w) {
   ok <- is.finite(resid) & is.finite(w)
-
+  
   resid <- resid[ok]
   w <- w[ok]
-
+  
   if (length(resid) == 0 || sum(w) <= 0) {
     return(NA_real_)
   }
-
+  
   resid_mean <- weighted.mean(resid, w, na.rm = TRUE)
   resid_sd <- sqrt(weighted.mean((resid - resid_mean)^2, w, na.rm = TRUE))
-
+  
   if (!is.finite(resid_sd) || resid_sd <= 0) {
     return(NA_real_)
   }
-
+  
   resid_sd
 }
 
 weighted_sd_pop <- function(x, w) {
   ok <- is.finite(x) & is.finite(w) & (w > 0)
-
+  
   x <- x[ok]
   w <- w[ok]
-
+  
   if (length(x) <= 1 || sum(w) <= 0) {
     return(NA_real_)
   }
-
+  
   mu <- weighted.mean(x, w)
   sqrt(sum(w * (x - mu)^2) / sum(w))
 }
@@ -115,7 +115,7 @@ choose_nfolds <- function(n_schools,
   if (n_schools < small_sample_cutoff) {
     return(small_sample_nfolds)
   }
-
+  
   default_nfolds
 }
 
@@ -159,23 +159,23 @@ get_group_label <- function(group_key) {
     sped = "SPED",
     other = "Other"
   )
-
+  
   unname(lookup[group_key])
 }
 
 parse_coef_term <- function(term) {
   parts <- strsplit(term, ":", fixed = TRUE)[[1]]
   part_groups <- vapply(parts, get_term_group, character(1))
-
+  
   has_year <- any(part_groups == "school_year")
   non_year_groups <- unique(part_groups[part_groups != "school_year"])
-
+  
   if (length(non_year_groups) == 0) {
     group_key <- "school_year"
   } else {
     group_key <- non_year_groups[1]
   }
-
+  
   if (length(parts) == 1 && group_key == "school_year") {
     component <- "year_main"
   } else if (length(parts) == 1) {
@@ -185,7 +185,7 @@ parse_coef_term <- function(term) {
   } else {
     component <- "other_interaction"
   }
-
+  
   tibble(
     term = term,
     group_key = group_key,
@@ -219,7 +219,7 @@ make_relative_influence_label <- function(x) {
 
 standardize_coef_table <- function(coef_table_one, x_term_stats, term_meta, y, w) {
   y_w_sd <- weighted_sd_pop(y, w)
-
+  
   coef_table_one %>%
     left_join(x_term_stats, by = "term") %>%
     left_join(term_meta, by = "term") %>%
@@ -239,7 +239,7 @@ standardize_coef_table <- function(coef_table_one, x_term_stats, term_meta, y, w
 
 standardize_coef_audit <- function(model_coef_repeats_one_model, x_term_stats, term_meta, y, w) {
   y_w_sd <- weighted_sd_pop(y, w)
-
+  
   model_coef_repeats_one_model %>%
     group_by(model, formula_label, term) %>%
     summarise(
@@ -311,6 +311,46 @@ build_coef_influence <- function(coef_audit_tbl) {
     arrange(model, desc(total_abs), group_label)
 }
 
+
+make_formula_label <- function(selected_groups) {
+  if (length(selected_groups) == 0) {
+    return(SETTINGS$mandatory_group)
+  }
+  
+  paste0(
+    SETTINGS$mandatory_group,
+    "(",
+    paste(selected_groups, collapse = " + "),
+    ")"
+  )
+}
+
+make_rhs_terms <- function(predictor_groups, selected_groups) {
+  year_cols <- predictor_groups[[SETTINGS$mandatory_group]]
+  
+  if (length(selected_groups) > 0) {
+    selected_cols <- unlist(predictor_groups[selected_groups], use.names = FALSE)
+  } else {
+    selected_cols <- character(0)
+  }
+  
+  rhs_terms <- year_cols
+  
+  if (length(selected_cols) > 0) {
+    interaction_terms <- as.vector(
+      outer(year_cols, selected_cols, paste, sep = ":")
+    )
+    
+    rhs_terms <- c(
+      rhs_terms,
+      selected_cols,
+      interaction_terms
+    )
+  }
+  
+  unique(rhs_terms)
+}
+
 # Build a default toggle object that matches the structure expected by
 # run_benchmark_workflow(). This keeps manual/test calls compatible with
 # the app's character-vector UI defaults.
@@ -322,19 +362,19 @@ run_benchmark_workflow <- function(model_key = "grade_03__DeSSA.ELA",
                                    top_n = SETTINGS$comparison_top_n,
                                    min_students_tested = 10,
                                    neutral_band_multiplier = SETTINGS$neutral_band_multiplier) {
-
+  
   # ---------------- data prep ---------------- #
   df <- APP_DATA[[model_key]] %>%
     filter(n >= min_students_tested) %>%
     mutate(.row_id = row_number())
-
+  
   if (nrow(df) == 0) {
     stop("No rows remain after filtering by min_students_tested.", call. = FALSE)
   }
-
+  
   n_schools <- n_distinct(df[[SETTINGS$school_id]])
   nfolds_use <- choose_nfolds(n_schools)
-
+  
   predictor_groups <- list(
     school_year = names(df)[startsWith(names(df), "SchoolYear.")],
     na = intersect("na", names(df)),
@@ -352,7 +392,7 @@ run_benchmark_workflow <- function(model_key = "grade_03__DeSSA.ELA",
     race = names(df)[startsWith(names(df), "RaceReportTitle.")],
     sped = names(df)[startsWith(names(df), "SPEDCode.")]
   )
-
+  
   prep_audit <- list(
     model_key = model_key,
     n_rows = nrow(df),
@@ -363,81 +403,60 @@ run_benchmark_workflow <- function(model_key = "grade_03__DeSSA.ELA",
     assessment_label = unique(df$AssessmentLabel),
     predictor_counts = sapply(predictor_groups, length)
   )
-
+  
   baseline_model <- names(model_toggles)[1]
-
+  
   score_all_models <- list()
   coef_table_models <- list()
   coef_audit_models <- list()
   coef_influence_models <- list()
   model_audit_models <- list()
-
+  
   score_all_repeats_models <- list()
   model_audit_repeats_models <- list()
-
+  
   # ---------------- fit each model ---------------- #
   for (model_name in names(model_toggles)) {
     group_toggles <- model_toggles[[model_name]]
     selected_groups <- names(group_toggles)[group_toggles]
-
-    if (length(selected_groups) > 0) {
-      formula_label <- paste0(
-        SETTINGS$mandatory_group,
-        "(",
-        paste(selected_groups, collapse = " + "),
-        ")"
-      )
-    } else {
-      formula_label <- SETTINGS$mandatory_group
-    }
-
-    year_cols <- predictor_groups[[SETTINGS$mandatory_group]]
-
-    if (length(selected_groups) > 0) {
-      selected_cols <- unlist(predictor_groups[selected_groups], use.names = FALSE)
-    } else {
-      selected_cols <- character(0)
-    }
-
-    rhs_terms <- year_cols
-
-    if (length(selected_cols) > 0) {
-      interaction_terms <- as.vector(outer(year_cols, selected_cols, paste, sep = ":"))
-      rhs_terms <- c(rhs_terms, selected_cols, interaction_terms)
-    }
-
-    rhs_terms <- unique(rhs_terms)
-
+    
+    formula_label <- make_formula_label(selected_groups)
+    
+    rhs_terms <- make_rhs_terms(
+      predictor_groups = predictor_groups,
+      selected_groups = selected_groups
+    )
+    
     formula_obj <- as.formula(
       paste(SETTINGS$outcome, "~", paste(rhs_terms, collapse = " + "))
     )
-
+    
     X <- model.matrix(formula_obj, data = df)
-
+    
     if ("(Intercept)" %in% colnames(X)) {
       X <- X[, colnames(X) != "(Intercept)", drop = FALSE]
     }
-
+    
     keep_cols <- apply(X, 2, stats::sd, na.rm = TRUE) > 0
     keep_cols[is.na(keep_cols)] <- FALSE
     X <- X[, keep_cols, drop = FALSE]
-
+    
     y <- df[[SETTINGS$outcome]]
     w <- df[[SETTINGS$weight_var]]
-
+    
     x_term_stats <- build_x_term_stats(X, w)
     term_meta <- build_term_meta(colnames(X))
-
+    
     scored_repeats_one_model <- list()
     audit_repeats_one_model <- list()
     coef_repeats_one_model <- list()
     coef_table_one <- NULL
-
+    
     # ---------------- repeated grouped CV ---------------- #
     for (cv_repeat in seq_len(SETTINGS$cv_repeats)) {
       cv_seed <- SETTINGS$cv_seed_start + cv_repeat - 1
       foldid <- make_school_foldid(df, seed = cv_seed, nfolds = nfolds_use)
-
+      
       cv_fit <- cv.glmnet(
         x = X,
         y = y,
@@ -449,11 +468,11 @@ run_benchmark_workflow <- function(model_key = "grade_03__DeSSA.ELA",
         foldid = foldid,
         keep = TRUE
       )
-
+      
       lambda_selected <- cv_fit[[SETTINGS$lambda_choice]]
       idx_selected <- which.min(abs(cv_fit$lambda - lambda_selected))
       pred_cv <- as.numeric(cv_fit$fit.preval[, idx_selected])
-
+      
       scored_one <- df %>%
         transmute(
           .row_id,
@@ -470,13 +489,13 @@ run_benchmark_workflow <- function(model_key = "grade_03__DeSSA.ELA",
           .pred_cv = pred_cv,
           .resid_cv = .data[[SETTINGS$outcome]] - .pred_cv
         )
-
+      
       resid_sd <- weighted_residual_sd(
         resid = scored_one$.resid_cv,
         w = scored_one[[SETTINGS$weight_var]]
       )
       neutral_band <- resid_sd * neutral_band_multiplier
-
+      
       scored_one <- scored_one %>%
         mutate(
           .resid_cv_weighted_sd = resid_sd,
@@ -492,9 +511,9 @@ run_benchmark_workflow <- function(model_key = "grade_03__DeSSA.ELA",
         arrange(desc(.performance_z_cv), .by_group = TRUE) %>%
         mutate(.performance_rank_cv = min_rank(desc(.performance_z_cv))) %>%
         ungroup()
-
+      
       metrics_cv <- weighted_metrics(y, pred_cv, w)
-
+      
       audit_repeats_one_model[[cv_repeat]] <- tibble(
         model = model_name,
         formula_label = formula_label,
@@ -517,9 +536,9 @@ run_benchmark_workflow <- function(model_key = "grade_03__DeSSA.ELA",
         resid_cv_weighted_sd = resid_sd,
         neutral_band_cv = neutral_band
       )
-
+      
       scored_repeats_one_model[[cv_repeat]] <- scored_one
-
+      
       coef_mat <- as.matrix(coef(cv_fit, s = SETTINGS$lambda_choice))
       coef_repeats_one_model[[cv_repeat]] <- tibble(
         cv_repeat = cv_repeat,
@@ -532,17 +551,17 @@ run_benchmark_workflow <- function(model_key = "grade_03__DeSSA.ELA",
           formula_label = formula_label
         ) %>%
         arrange(desc(abs(estimate)))
-
+      
       if (is.null(coef_table_one)) {
         coef_table_one <- coef_repeats_one_model[[cv_repeat]]
       }
     }
-
+    
     # ---------------- combine repeated CV results ---------------- #
     score_all_repeats_one_model <- bind_rows(scored_repeats_one_model)
     model_audit_repeats_one_model <- bind_rows(audit_repeats_one_model)
     model_coef_repeats_one_model <- bind_rows(coef_repeats_one_model)
-
+    
     score_summary <- score_all_repeats_one_model %>%
       group_by(.row_id) %>%
       summarise(
@@ -554,7 +573,7 @@ run_benchmark_workflow <- function(model_key = "grade_03__DeSSA.ELA",
         n_cv_repeats_used = sum(is.finite(.pred_cv)),
         .groups = "drop"
       )
-
+    
     scored_data <- df %>%
       mutate(
         model = model_name,
@@ -566,13 +585,13 @@ run_benchmark_workflow <- function(model_key = "grade_03__DeSSA.ELA",
         .resid_cv = .data[[SETTINGS$outcome]] - .pred_cv
       ) %>%
       select(-.pred_cv_mean)
-
+    
     resid_sd <- weighted_residual_sd(
       resid = scored_data$.resid_cv,
       w = scored_data[[SETTINGS$weight_var]]
     )
     neutral_band <- resid_sd * neutral_band_multiplier
-
+    
     scored_data <- scored_data %>%
       mutate(
         .resid_cv_weighted_sd = resid_sd,
@@ -592,7 +611,7 @@ run_benchmark_workflow <- function(model_key = "grade_03__DeSSA.ELA",
         LEA_META,
         by = c("SchoolYear", "SchoolCode", "ModelGrade")
       )
-
+    
     model_audit_one <- model_audit_repeats_one_model %>%
       summarise(
         model = first(model),
@@ -621,7 +640,7 @@ run_benchmark_workflow <- function(model_key = "grade_03__DeSSA.ELA",
         wmae_cv = wmae_cv_mean,
         wr2_cv = wr2_cv_mean
       )
-
+    
     coef_table_one <- standardize_coef_table(
       coef_table_one = coef_table_one,
       x_term_stats = x_term_stats,
@@ -629,7 +648,7 @@ run_benchmark_workflow <- function(model_key = "grade_03__DeSSA.ELA",
       y = y,
       w = w
     )
-
+    
     coef_audit_one <- standardize_coef_audit(
       model_coef_repeats_one_model = model_coef_repeats_one_model,
       x_term_stats = x_term_stats,
@@ -637,44 +656,44 @@ run_benchmark_workflow <- function(model_key = "grade_03__DeSSA.ELA",
       y = y,
       w = w
     )
-
+    
     coef_influence_one <- build_coef_influence(coef_audit_one)
-
+    
     score_all_models[[model_name]] <- scored_data
     coef_table_models[[model_name]] <- coef_table_one
     coef_audit_models[[model_name]] <- coef_audit_one
     coef_influence_models[[model_name]] <- coef_influence_one
     model_audit_models[[model_name]] <- model_audit_one
-
+    
     score_all_repeats_models[[model_name]] <- score_all_repeats_one_model
     model_audit_repeats_models[[model_name]] <- model_audit_repeats_one_model
   }
-
+  
   # ---------------- combine outputs across models ---------------- #
   score_all <- bind_rows(score_all_models) %>%
     mutate(model = factor(model, levels = names(model_toggles)))
-
+  
   coef_table <- bind_rows(coef_table_models) %>%
     mutate(model = factor(model, levels = names(model_toggles)))
-
+  
   coef_audit <- bind_rows(coef_audit_models) %>%
     mutate(model = factor(model, levels = names(model_toggles)))
-
+  
   coef_influence <- bind_rows(coef_influence_models) %>%
     mutate(model = factor(model, levels = names(model_toggles)))
-
+  
   coef_influence_no_year <- coef_influence %>%
     filter(group_key != "school_year")
-
+  
   model_audit <- bind_rows(model_audit_models) %>%
     mutate(model = factor(model, levels = names(model_toggles)))
-
+  
   score_all_repeats <- bind_rows(score_all_repeats_models) %>%
     mutate(model = factor(model, levels = names(model_toggles)))
-
+  
   model_audit_repeats <- bind_rows(model_audit_repeats_models) %>%
     mutate(model = factor(model, levels = names(model_toggles)))
-
+  
   # ---------------- build comparison data for visuals ---------------- #
   baseline_rows <- score_all %>%
     filter(
@@ -682,20 +701,20 @@ run_benchmark_workflow <- function(model_key = "grade_03__DeSSA.ELA",
       as.character(model) == baseline_model
     ) %>%
     arrange(.performance_rank_cv)
-
+  
   top_n <- min(top_n, floor(nrow(baseline_rows) / 2))
-
+  
   if (top_n < 1) {
     stop("Not enough baseline schools to create top/bottom comparison groups.", call. = FALSE)
   }
-
+  
   focus_schools <- bind_rows(
     slice_head(baseline_rows, n = top_n),
     slice_tail(baseline_rows, n = top_n)
   ) %>%
     distinct(SchoolCode) %>%
     pull(SchoolCode)
-
+  
   model_comp_table <- score_all %>%
     filter(SchoolYear == selection_year) %>%
     select(
@@ -750,7 +769,7 @@ run_benchmark_workflow <- function(model_key = "grade_03__DeSSA.ELA",
       .performance_rank_cv,
       .performance_direction
     )
-
+  
   model_comp_plot <-
     model_comp_table %>%
     filter(SchoolCode %in% focus_schools) %>%
@@ -800,7 +819,7 @@ run_benchmark_workflow <- function(model_key = "grade_03__DeSSA.ELA",
     ) %>%
     rename("ScaleScore.mean" = all_of(SETTINGS$outcome)) %>%
     mutate(SchoolYear = factor(SchoolYear))
-
+  
   post_run_audit <- list(
     n_models = length(model_toggles),
     models = names(model_toggles),
@@ -820,7 +839,7 @@ run_benchmark_workflow <- function(model_key = "grade_03__DeSSA.ELA",
     model_audit_repeats_rows = nrow(model_audit_repeats),
     model_comp_plot_rows = nrow(model_comp_plot)
   )
-
+  
   list(
     prep_audit = prep_audit,
     predictor_groups = predictor_groups,

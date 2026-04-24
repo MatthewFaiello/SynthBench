@@ -1,6 +1,6 @@
 # =========================================================
 # year_coef.R
-# Year-specific coefficient display table + gt table
+# Year-specific benchmark feature weight table + gt table
 # Harmonized to visual_helper.R and using explicit feature labels
 # =========================================================
 
@@ -28,11 +28,11 @@ pretty_feature_label <- function(x) {
     "County_Name.Sussex" = "Sussex County",
     "na" = "Percent missing scores",
     "units" = "Student units",
-
+    
     "ELL.ELL" = "ELL",
     "ELL.ELM" = "ELM",
     "ELL.ELX" = "ELX",
-
+    
     "FosterCare.FOSTR" = "Foster care",
     "Gender.M" = "Male",
     "Geography.W" = "Wilmington",
@@ -41,14 +41,14 @@ pretty_feature_label <- function(x) {
     "LowIncome.LOWINC" = "Low income",
     "Migrant.MIGRNT" = "Migrant",
     "MilitaryDep.MILTRY" = "Military connected",
-
+    
     "RaceReportTitle.African_American" = "African American",
     "RaceReportTitle.American_Indian" = "American Indian",
     "RaceReportTitle.Asian" = "Asian",
     "RaceReportTitle.Hawaiian" = "Hawaiian",
     "RaceReportTitle.Hispanic_Latino" = "Hispanic / Latino",
     "RaceReportTitle.Multi_Racial" = "Multi-racial",
-
+    
     "SPEDCode.100" = "SPED 100",
     "SPEDCode.200" = "SPED 200",
     "SPEDCode.300" = "SPED 300",
@@ -65,7 +65,7 @@ pretty_feature_label <- function(x) {
     "SPEDCode.1300" = "SPED 1300",
     "SPEDCode.1400" = "SPED 1400"
   )
-
+  
   dplyr::recode(x, !!!label_map, .default = x)
 }
 
@@ -73,12 +73,12 @@ pretty_feature_label <- function(x) {
 make_year_coef_display_table <- function(run,
                                          year = 2025,
                                          mixed_threshold = 0.20) {
-
+  
   coef_audit <- run$coef_audit
   coef_col <- "b_std_mean"
   year_term <- paste0("SchoolYear.", year)
-
-  # feature main effects
+  
+  # feature main coefficients
   main_tbl <- coef_audit %>%
     filter(component == "feature_main") %>%
     transmute(
@@ -87,10 +87,10 @@ make_year_coef_display_table <- function(run,
       group_key,
       group_label,
       feature_term = term,
-      main_effect = .data[[coef_col]]
+      main_coef = .data[[coef_col]]
     )
-
-  # selected-year interactions
+  
+  # selected-year interaction coefficients
   interaction_tbl <- coef_audit %>%
     filter(component == "year_interaction") %>%
     mutate(
@@ -105,10 +105,10 @@ make_year_coef_display_table <- function(run,
       model,
       formula_label,
       feature_term,
-      year_interaction = .data[[coef_col]]
+      year_interaction_coef = .data[[coef_col]]
     )
-
-  # pure year main effect
+  
+  # pure year main coefficient
   year_main_tbl <- coef_audit %>%
     filter(term == year_term) %>%
     transmute(
@@ -116,7 +116,7 @@ make_year_coef_display_table <- function(run,
       formula_label,
       year_main = .data[[coef_col]]
     )
-
+  
   # feature-level year-specific coefficients
   term_table <- main_tbl %>%
     left_join(
@@ -125,10 +125,10 @@ make_year_coef_display_table <- function(run,
     ) %>%
     mutate(
       year = year,
-      year_interaction = coalesce(year_interaction, 0),
-      year_specific_coef = main_effect + year_interaction,
+      year_interaction_coef = coalesce(year_interaction_coef, 0),
+      year_specific_coef = main_coef + year_interaction_coef,
       total_abs_year_specific = abs(year_specific_coef),
-      direction = case_when(
+      coef_sign = case_when(
         year_specific_coef > 0 ~ "positive",
         year_specific_coef < 0 ~ "negative",
         TRUE ~ "neutral"
@@ -136,14 +136,14 @@ make_year_coef_display_table <- function(run,
       display_label = pretty_feature_label(feature_term)
     ) %>%
     arrange(model, group_label, desc(total_abs_year_specific), feature_term)
-
-  # group-level year-specific summary
+  
+  # group-level year-specific coefficient-weight summary
   group_table <- term_table %>%
     group_by(model, formula_label, year, group_key, group_label) %>%
     summarise(
       n_terms = n(),
-      total_abs_main = sum(abs(main_effect), na.rm = TRUE),
-      total_abs_year_interaction = sum(abs(year_interaction), na.rm = TRUE),
+      total_abs_main = sum(abs(main_coef), na.rm = TRUE),
+      total_abs_year_interaction = sum(abs(year_interaction_coef), na.rm = TRUE),
       total_abs_year_specific = sum(total_abs_year_specific, na.rm = TRUE),
       mean_abs_year_specific = mean(total_abs_year_specific, na.rm = TRUE),
       signed_net_year_specific = sum(year_specific_coef, na.rm = TRUE),
@@ -155,7 +155,7 @@ make_year_coef_display_table <- function(run,
         abs(signed_net_year_specific) / total_abs_year_specific,
         0
       ),
-      direction = case_when(
+      coef_sign = case_when(
         total_abs_year_specific == 0 ~ "neutral",
         net_share < mixed_threshold ~ "mixed",
         signed_net_year_specific > 0 ~ "positive",
@@ -172,7 +172,7 @@ make_year_coef_display_table <- function(run,
     ) %>%
     ungroup() %>%
     arrange(model, desc(total_abs_year_specific), group_label)
-
+  
   # one display-ready table
   group_display <- group_table %>%
     transmute(
@@ -185,12 +185,12 @@ make_year_coef_display_table <- function(run,
       display_label,
       n_terms,
       total_abs_year_specific,
-      direction,
+      coef_sign,
       pct_of_top,
       sort_group = group_rank,
       sort_within_group = 0
     )
-
+  
   term_display <- term_table %>%
     left_join(
       group_table %>%
@@ -211,12 +211,12 @@ make_year_coef_display_table <- function(run,
       display_label,
       n_terms = 1L,
       total_abs_year_specific,
-      direction,
+      coef_sign,
       pct_of_top = NA_real_,
       sort_group = group_rank,
       sort_within_group
     )
-
+  
   display_table <- bind_rows(group_display, term_display) %>%
     arrange(model, sort_group, level, sort_within_group, desc(total_abs_year_specific), display_label) %>%
     select(
@@ -227,11 +227,11 @@ make_year_coef_display_table <- function(run,
       group_label,
       display_label,
       total_abs_year_specific,
-      direction,
+      coef_sign,
       pct_of_top,
       n_terms
     )
-
+  
   list(
     term_table = term_table,
     group_table = group_table,
@@ -244,26 +244,30 @@ make_year_coef_display_table <- function(run,
 make_year_coef_gt <- function(run,
                               year = 2025,
                               mixed_threshold = 0.20) {
-
+  
   yr <- make_year_coef_display_table(
     run = run,
     year = year,
     mixed_threshold = mixed_threshold
   )
-
-  year_note <- yr$year_main %>%
-    mutate(txt = paste0(model, ": ", number(year_main, accuracy = 0.001))) %>%
-    pull(txt) %>%
-    paste(collapse = " | ")
-
+  
+  year_note <- if (nrow(yr$year_main) > 0) {
+    yr$year_main %>%
+      mutate(txt = paste0(model, ": ", number(year_main, accuracy = 0.001))) %>%
+      pull(txt) %>%
+      paste(collapse = " | ")
+  } else {
+    "not available"
+  }
+  
   gt_data <- yr$display_table %>%
     mutate(
       level_order = if_else(level == "feature_group", 0L, 1L),
       level = if_else(level == "feature_group", "Group", "Feature"),
-      direction = case_when(
-        direction == "positive" ~ "Positive",
-        direction == "negative" ~ "Negative",
-        direction == "mixed" ~ "Mixed",
+      coef_sign = case_when(
+        coef_sign == "positive" ~ "Positive",
+        coef_sign == "negative" ~ "Negative",
+        coef_sign == "mixed" ~ "Mixed",
         TRUE ~ "Neutral"
       ),
       display_label = if_else(
@@ -280,26 +284,30 @@ make_year_coef_gt <- function(run,
       display_label,
       level,
       total_abs_year_specific,
-      direction,
+      coef_sign,
       pct_of_top
     )
-
+  
   gt_data %>%
     gt(
       groupname_col = "model",
       rowname_col = "display_label"
     ) %>%
     tab_header(
-      title = md(paste0("**Year-specific coefficient influence: ", year, "**")),
+      title = md(paste0("**Year-specific benchmark feature weights: ", year, "**")),
       subtitle = md(
-        "Grouped benchmark effects and individual feature effects shown together. Larger values indicate more coefficient influence in the selected year."
+        paste(
+          "Grouped benchmark features and individual feature coefficients are shown together.",
+          "Larger values indicate larger relative standardized coefficient weight in the selected year.",
+          "These are model diagnostics, not causal effects."
+        )
       )
     ) %>%
     cols_label(
       group_label = "Benchmark group",
       level = "Level",
-      total_abs_year_specific = "Year-specific influence",
-      direction = "Direction",
+      total_abs_year_specific = "Relative weight",
+      coef_sign = "Sign",
       pct_of_top = "% of top group"
     ) %>%
     fmt_number(
@@ -316,7 +324,7 @@ make_year_coef_gt <- function(run,
     ) %>%
     cols_align(
       align = "center",
-      columns = c(level, direction)
+      columns = c(level, coef_sign)
     ) %>%
     cols_align(
       align = "right",
@@ -327,8 +335,8 @@ make_year_coef_gt <- function(run,
       columns = c(group_label, level)
     ) %>%
     tab_spanner(
-      label = "Year-specific summary",
-      columns = c(total_abs_year_specific, direction, pct_of_top)
+      label = "Year-specific coefficient summary",
+      columns = c(total_abs_year_specific, coef_sign, pct_of_top)
     ) %>%
     tab_style(
       style = list(
@@ -365,10 +373,9 @@ make_year_coef_gt <- function(run,
       source_note = md(
         paste0(
           "**Note.** Feature rows use the selected year's standardized coefficient, ",
-          "computed as the feature main effect plus the selected year interaction when present. ",
-          "These feature-level values are on a standardized-coefficient scale. ",
+          "computed as the feature main coefficient plus the selected-year interaction coefficient when present. ",
           "Group rows sum the absolute values of those year-specific standardized coefficients, ",
-          "so they should be read as relative influence scores rather than as single standardized effects. ",
+          "so they should be read as relative coefficient-weight scores, not as causal effects or stand-alone importance measures. ",
           "`% of top group` is shown only for group rows. ",
           "Pure `SchoolYear.", year, "` coefficient by model: ",
           year_note,
@@ -379,4 +386,3 @@ make_year_coef_gt <- function(run,
 }
 
 # make_year_coef_gt(run = test, year = 2025)
-

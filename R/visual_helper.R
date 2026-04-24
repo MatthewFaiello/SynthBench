@@ -414,9 +414,9 @@ build_visual_data <- function(model_comp_plot,
       metric_name = recode(
         metric_name,
         .performance_rank_cv = "Within-year rank",
-        .performance_z_cv = "Scaled residual",
-        .resid_cv = "Benchmark-adjusted residual",
-        .pred_cv = "Benchmark prediction"
+        .performance_z_cv = "Scaled benchmark gap",
+        .resid_cv = "Benchmark gap",
+        .pred_cv = "Benchmark"
       )
     )
   
@@ -435,8 +435,8 @@ build_visual_data <- function(model_comp_plot,
       best_rank = min(.performance_rank_cv, na.rm = TRUE),
       worst_rank = max(.performance_rank_cv, na.rm = TRUE),
       largest_rank_shift = max(abs(.performance_rank_cv - baseline_rank), na.rm = TRUE),
-      largest_expected_score_shift = max(.pred_cv, na.rm = TRUE) - min(.pred_cv, na.rm = TRUE),
-      largest_scaled_residual_shift = max(.performance_z_cv, na.rm = TRUE) - min(.performance_z_cv, na.rm = TRUE),
+      largest_benchmark_score_shift = max(.pred_cv, na.rm = TRUE) - min(.pred_cv, na.rm = TRUE),
+      largest_scaled_benchmark_gap_shift = max(.performance_z_cv, na.rm = TRUE) - min(.performance_z_cv, na.rm = TRUE),
       .groups = "drop"
     ) %>%
     arrange(baseline_group, baseline_rank) %>%
@@ -448,8 +448,8 @@ build_visual_data <- function(model_comp_plot,
       `Best rank` = round(best_rank),
       `Worst rank` = round(worst_rank),
       `Largest rank shift` = round(largest_rank_shift, 1),
-      `Largest expected-score shift` = round(largest_expected_score_shift, 1),
-      `Largest scaled-residual shift` = round(largest_scaled_residual_shift, 2)
+      `Largest benchmark-score shift` = round(largest_benchmark_score_shift, 1),
+      `Largest scaled benchmark-gap shift` = round(largest_scaled_benchmark_gap_shift, 2)
     ) %>%
     select(
       `Baseline group`,
@@ -460,8 +460,8 @@ build_visual_data <- function(model_comp_plot,
       `Best rank`,
       `Worst rank`,
       `Largest rank shift`,
-      `Largest expected-score shift`,
-      `Largest scaled-residual shift`
+      `Largest benchmark-score shift`,
+      `Largest scaled benchmark-gap shift`
     )
   
   
@@ -556,9 +556,9 @@ build_visual_data <- function(model_comp_plot,
       mutate(
         stability_metric = recode(
           stability_metric,
-          .pred_cv_sd = "Prediction SD across CV repeats",
+          .pred_cv_sd = "Benchmark-score SD across CV repeats",
           .performance_rank_cv_sd = "Rank SD across CV repeats",
-          .performance_direction_consistency = "Direction consistency across CV repeats"
+          .performance_direction_consistency = "Benchmark-label consistency across CV repeats"
         )
       )
     
@@ -716,7 +716,7 @@ p_metric_facets <- function(viz) {
     scale_color_manual(values = viz$baseline_group_colors) +
     facet_wrap(~ metric_name, scales = "free_y", ncol = 2) +
     labs(
-      title = "How tracked baseline-school metrics change across models",
+      title = "How tracked baseline-school results change across models",
       subtitle = paste(
         "The same tracked baseline schools are followed across the baseline and alternative models.",
         viz$tracked_school_note
@@ -784,12 +784,12 @@ tbl_rank_summary <- function(viz) {
       columns = c(
         `Mean observed score`,
         `Largest rank shift`,
-        `Largest expected-score shift`
+        `Largest benchmark-score shift`
       ),
       decimals = 1
     ) %>%
     fmt_number(
-      columns = c(`Largest scaled-residual shift`),
+      columns = c(`Largest scaled benchmark-gap shift`),
       decimals = 2
     ) %>%
     cols_align(
@@ -806,8 +806,8 @@ tbl_rank_summary <- function(viz) {
         n,
         `Mean observed score`,
         `Largest rank shift`,
-        `Largest expected-score shift`,
-        `Largest scaled-residual shift`
+        `Largest benchmark-score shift`,
+        `Largest scaled benchmark-gap shift`
       )
     ) %>%
     tab_spanner(
@@ -820,8 +820,8 @@ tbl_rank_summary <- function(viz) {
         `Best rank`,
         `Worst rank`,
         `Largest rank shift`,
-        `Largest expected-score shift`,
-        `Largest scaled-residual shift`
+        `Largest benchmark-score shift`,
+        `Largest scaled benchmark-gap shift`
       )
     ) %>%
     tab_style(
@@ -853,7 +853,7 @@ tbl_rank_summary <- function(viz) {
         paste0(
           "**Note.** Baseline = `",
           baseline_caption(viz),
-          "`. Smaller rank numbers are better. `n` is the number of tested students contributing to the school mean. The summary covers only the tracked top and bottom baseline schools."
+          "`. Smaller rank numbers are better. `n` is the number of tested students contributing to the observed school mean. The summary covers only the tracked top and bottom baseline schools."
         )
       )
     )

@@ -1,7 +1,6 @@
 # plot resolution
 res <- 85
 
-
 # =========================================================
 # Full-results table helpers
 # =========================================================
@@ -35,16 +34,16 @@ make_model_comp_table <- function(dat, format_for_display = TRUE) {
       
       `Tested students` = as.integer(n),
       `Observed score` = round(ScaleScore.mean, 1),
-      `Benchmark-predicted score` = round(.pred_cv, 1),
+      `Benchmark score` = round(.pred_cv, 1),
       `Benchmark gap` = round(.resid_cv, 1),
-      `Scaled residual` = round(.performance_z_cv, 2),
+      `Scaled benchmark gap` = round(.performance_z_cv, 2),
       `Within-year rank` = as.integer(.performance_rank_cv),
       
-      `Direction label` = recode(
+      `Benchmark label` = recode(
         .performance_direction,
-        above_expected = "Above expected",
-        near_expected  = "Near expected",
-        below_expected = "Below expected"
+        above_expected = "Above benchmark",
+        near_expected  = "Near benchmark",
+        below_expected = "Below benchmark"
       ),
       
       `Percent missing scores` = pct(na),
@@ -137,13 +136,13 @@ write_model_comp_workbook <- function(dat, file) {
   
   one_dec_cols <- which(names(dat) %in% c(
     "Observed score",
-    "Benchmark-predicted score",
+    "Benchmark score",
     "Benchmark gap",
     "Student units"
   ))
   
   two_dec_cols <- which(names(dat) %in% c(
-    "Scaled residual"
+    "Scaled benchmark gap"
   ))
   
   pct_cols <- which(names(dat) %in% c(
@@ -349,7 +348,7 @@ server <- function(input, output, session) {
           neutral_band_multiplier = input$neutral_band_multiplier
         )
         
-        incProgress(0.8, detail = "Building visuals")
+        incProgress(0.8, detail = "Finalizing outputs")
         
         list(
           ok = TRUE,
@@ -476,7 +475,7 @@ server <- function(input, output, session) {
       c(
         "School year",
         "Within-year rank",
-        "Direction label"
+        "Benchmark label"
       ),
       names(dat),
       nomatch = 0
@@ -515,10 +514,10 @@ server <- function(input, output, session) {
         `white-space` = "normal"
       ) %>%
       formatStyle(
-        "Direction label",
+        "Benchmark label",
         target = "row",
         backgroundColor = styleEqual(
-          c("Above expected", "Near expected", "Below expected"),
+          c("Above benchmark", "Near benchmark", "Below benchmark"),
           c("#eef7ee", "#fffdf2", "#fdeeee")
         )
       )
