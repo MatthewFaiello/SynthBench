@@ -1,14 +1,6 @@
 # =========================================================
 # R/workflow.R
 # Historical benchmarking workflow
-#
-# This version keeps the workflow as linear as possible and
-# fully integrates standardized coefficients and grouped
-# relative influence tables.
-#
-# Updated:
-# - adds a simple fold switcher so smaller samples can use
-#   fewer grouped CV folds
 # =========================================================
 
 weighted_metrics <- function(y, pred, w) {
@@ -264,7 +256,7 @@ standardize_coef_audit <- function(model_coef_repeats_one_model, x_term_stats, t
       ),
       abs_b_raw = abs(b_raw_mean),
       abs_b_std = abs(b_std_mean),
-      # keep legacy names so older code does not break
+
       b_cv_mean = b_raw_mean,
       b_cv_sd = b_raw_sd
     ) %>%
@@ -351,9 +343,6 @@ make_rhs_terms <- function(predictor_groups, selected_groups) {
   unique(rhs_terms)
 }
 
-# Build a default toggle object that matches the structure expected by
-# run_benchmark_workflow(). This keeps manual/test calls compatible with
-# the app's character-vector UI defaults.
 DEFAULT_MODEL_TOGGLES <- lapply(DEFAULT_MODEL_SELECTIONS, build_toggle_vector)
 
 run_benchmark_workflow <- function(model_key = "grade_03__DeSSA.ELA",

@@ -8,8 +8,6 @@
 #   model definitions.
 #
 # Methodological position:
-#   - These visuals are built for historical benchmark comparisons,
-#     not causal explanation and not future-year forecasting.
 #   - The core visual task is to show benchmark-definition
 #     sensitivity for the tracked baseline schools and, when
 #     available, to separate that from split-assignment stability.

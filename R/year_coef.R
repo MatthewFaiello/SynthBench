@@ -1,7 +1,6 @@
 # =========================================================
 # year_coef.R
 # Year-specific benchmark feature weight table + gt table
-# Harmonized to visual_helper.R and using explicit feature labels
 # =========================================================
 
 # --------------------------- visual style --------------------------- #
