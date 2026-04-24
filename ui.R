@@ -14,8 +14,9 @@ default_year_choices <- get_year_choices(default_scope_1, default_scope_2)
 default_year <- unname(tail(default_year_choices, 1))
 
 default_n <- get_range_n(default_scope_1, default_scope_2)
-default_n_min <- max(default_n$n_min, 10)
+default_n_min <- default_n$n_min
 default_n_max <- default_n$n_max
+default_n_value <- max(default_n_min, 10)
 
 default_neutral_band <- SETTINGS$neutral_band_multiplier
 
@@ -226,7 +227,7 @@ ui <- fluidPage(
                     default_n_max,
                     ")"
                   ),
-                  value = default_n_min,
+                  value = default_n_value,
                   min = default_n_min,
                   max = default_n_max,
                   step = 1
