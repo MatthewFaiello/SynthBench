@@ -1,12 +1,17 @@
-# plot resolution
+# =========================================================
+# server.R
+# Server logic for Model-Based Benchmarking
+# =========================================================
+
+# Plot resolution
 res <- 85
+
 
 # =========================================================
 # Full-results table helpers
 # =========================================================
 
 make_model_comp_table <- function(dat, format_for_display = TRUE) {
-  
   pct <- function(x) {
     if (format_for_display) {
       scales::percent(x, accuracy = 0.1)
@@ -24,13 +29,15 @@ make_model_comp_table <- function(dat, format_for_display = TRUE) {
       County = case_when(
         County_Name.New_Castle == 1 ~ "New Castle County",
         County_Name.Sussex == 1 ~ "Sussex County",
-        .default = "Kent County"
+        County_Name.New_Castle == 0 & County_Name.Sussex == 0 ~ "Kent County",
+        TRUE ~ "Unknown / not available"
       ),
       
       `District name` = as.character(DistrictName),
       `School name` = as.character(SchoolName),
       `School code` = as.character(SchoolCode),
-      Grade = as.character(ModelGrade),
+      Assessment = as.character(AssessmentLabel),
+      Grade = vapply(as.character(ModelGrade), format_grade, character(1)),
       
       `Tested students` = as.integer(n),
       `Observed score` = round(ScaleScore.mean, 1),
@@ -90,7 +97,6 @@ make_model_comp_table <- function(dat, format_for_display = TRUE) {
 
 
 write_model_comp_workbook <- function(dat, file) {
-  
   wb <- createWorkbook()
   sheet <- "Benchmark results"
   
@@ -124,10 +130,7 @@ write_model_comp_workbook <- function(dat, file) {
     cols = seq_len(ncol(dat))
   )
   
-  freezePane(
-    wb, sheet,
-    firstRow = TRUE
-  )
+  freezePane(wb, sheet, firstRow = TRUE)
   
   int_cols <- which(names(dat) %in% c(
     "Tested students",
@@ -218,7 +221,6 @@ run_benchmark_and_visuals <- function(model_key,
                                       selection_year,
                                       min_students_tested,
                                       neutral_band_multiplier) {
-  
   run_result <- run_benchmark_workflow(
     model_key = model_key,
     model_toggles = model_toggles,
@@ -241,12 +243,114 @@ run_benchmark_and_visuals <- function(model_key,
 
 
 # =========================================================
+# Current-settings summary helpers
+# =========================================================
+
+label_selected_groups <- function(x) {
+  if (is.null(x) || length(x) == 0) {
+    return("School year only")
+  }
+  
+  group_values <- unname(GROUP_CHOICES)
+  group_labels <- names(GROUP_CHOICES)
+  
+  if (is.null(group_labels)) {
+    group_labels <- group_values
+  }
+  
+  matched <- group_labels[match(x, group_values)]
+  matched <- matched[!is.na(matched)]
+  
+  if (length(matched) == 0) {
+    "School year only"
+  } else {
+    paste(matched, collapse = ", ")
+  }
+}
+
+
+format_school_year <- function(x) {
+  yr <- suppressWarnings(as.integer(x))
+  
+  if (is.na(yr)) {
+    return(as.character(x))
+  }
+  
+  paste0(yr - 1, "-", substr(as.character(yr), 3, 4))
+}
+
+
+format_grade <- function(x) {
+  if (!exists("grade_labels", inherits = TRUE)) {
+    return(as.character(x))
+  }
+  
+  out <- unname(grade_labels[as.character(x)])
+  
+  if (length(out) == 0 || is.na(out)) {
+    as.character(x)
+  } else {
+    out
+  }
+}
+
+
+settings_item <- function(label, value, wide = FALSE) {
+  value <- if (is.null(value) || length(value) == 0 || all(is.na(value))) {
+    "None selected"
+  } else {
+    paste(value, collapse = ", ")
+  }
+  
+  div(
+    class = paste(
+      "sb-settings-item",
+      if (isTRUE(wide)) "sb-settings-item-wide" else NULL
+    ),
+    span(class = "sb-settings-label", label),
+    span(class = "sb-settings-value", value)
+  )
+}
+
+
+settings_summary_ui <- function(settings, run_ok = TRUE) {
+  title <- if (isTRUE(run_ok)) {
+    "Settings used for the displayed results"
+  } else {
+    "Settings used for the attempted run"
+  }
+  
+  div(
+    class = "sb-settings-summary",
+    
+    div(class = "sb-settings-summary-title", title),
+    
+    div(
+      class = "sb-settings-grid",
+      
+      settings_item("Assessment", settings$assessment),
+      settings_item("Grade", settings$grade),
+      settings_item("Comparison year", settings$comparison_year),
+      settings_item("Minimum tested students", settings$min_students),
+      settings_item("Neutral band", settings$neutral_band),
+      
+      settings_item("Baseline", settings$baseline, wide = TRUE),
+      settings_item("Alt 1", settings$alt1, wide = TRUE),
+      settings_item("Alt 2", settings$alt2, wide = TRUE),
+      settings_item("Alt 3", settings$alt3, wide = TRUE)
+    )
+  )
+}
+
+
+# =========================================================
 # Server
 # =========================================================
 
 server <- function(input, output, session) {
   
-  # ---------------- update scope inputs when the user changes scope ---------------- #
+  # ---------------- scope input updates ---------------- #
+  
   observeEvent(input$scope_1, {
     req(input$scope_1)
     
@@ -299,6 +403,7 @@ server <- function(input, output, session) {
   
   
   # ---------------- selected scope ---------------- #
+  
   selected_model_key <- reactive({
     req(input$scope_1, input$scope_2)
     
@@ -320,6 +425,7 @@ server <- function(input, output, session) {
   
   
   # ---------------- selected benchmark definitions ---------------- #
+  
   model_toggles_reactive <- reactive({
     list(
       Baseline = build_toggle_vector(input$baseline_groups),
@@ -330,131 +436,195 @@ server <- function(input, output, session) {
   })
   
   
+  # ---------------- current settings snapshot ---------------- #
+  
+  make_settings_snapshot <- reactive({
+    req(
+      input$scope_1,
+      input$scope_2,
+      input$selection_year,
+      input$min_students,
+      input$neutral_band_multiplier
+    )
+    
+    list(
+      assessment = as.character(input$scope_1),
+      grade = format_grade(input$scope_2),
+      comparison_year = format_school_year(input$selection_year),
+      min_students = as.integer(input$min_students),
+      neutral_band = paste0(
+        scales::number(
+          as.numeric(input$neutral_band_multiplier),
+          accuracy = 0.01
+        ),
+        " × weighted residual SD"
+      ),
+      baseline = label_selected_groups(input$baseline_groups),
+      alt1 = label_selected_groups(input$alt1_groups),
+      alt2 = label_selected_groups(input$alt2_groups),
+      alt3 = label_selected_groups(input$alt3_groups)
+    )
+  })
+  
+  
   # ---------------- run benchmark models ---------------- #
+  
   benchmark_results <- eventReactive(input$run_models, {
     req(selected_model_key(), input$selection_year, input$min_students)
     
+    # Capture every run input once, before the long model process starts.
+    # Downstream outputs use these stored values so they stay aligned with the run.
+    run_params <- list(
+      model_key = selected_model_key(),
+      model_toggles = model_toggles_reactive(),
+      selection_year = as.numeric(input$selection_year),
+      min_students_tested = as.integer(input$min_students),
+      neutral_band_multiplier = as.numeric(input$neutral_band_multiplier)
+    )
+    
+    settings_snapshot <- make_settings_snapshot()
+    
     withProgress(message = "Running benchmark models...", value = 0, {
-      
-      out <- tryCatch({
-        
+      tryCatch({
         incProgress(0.2, detail = "Fitting models")
         
         result <- run_benchmark_and_visuals(
-          model_key = selected_model_key(),
-          model_toggles = model_toggles_reactive(),
-          selection_year = as.numeric(input$selection_year),
-          min_students_tested = input$min_students,
-          neutral_band_multiplier = input$neutral_band_multiplier
+          model_key = run_params$model_key,
+          model_toggles = run_params$model_toggles,
+          selection_year = run_params$selection_year,
+          min_students_tested = run_params$min_students_tested,
+          neutral_band_multiplier = run_params$neutral_band_multiplier
         )
         
         incProgress(0.8, detail = "Finalizing outputs")
         
         list(
           ok = TRUE,
+          run_params = run_params,
+          settings = settings_snapshot,
           run_result = result$run_result,
           viz = result$viz,
           error = NULL
         )
-        
       }, error = function(e) {
         list(
           ok = FALSE,
+          run_params = run_params,
+          settings = settings_snapshot,
           run_result = NULL,
           viz = NULL,
           error = conditionMessage(e)
         )
       })
-      
-      out
     })
   }, ignoreInit = TRUE)
   
   
-  benchmark_ok <- reactive({
-    req(benchmark_results())
-    isTRUE(benchmark_results()$ok)
+  benchmark_checked <- reactive({
+    result <- benchmark_results()
+    req(result)
+    
+    validate(
+      need(isTRUE(result$ok), result$error)
+    )
+    
+    result
   })
   
   
-  require_benchmark_ok <- function() {
-    req(benchmark_results())
-    validate(need(benchmark_ok(), benchmark_results()$error))
-  }
+  # ---------------- current settings summary ---------------- #
+  
+  output$current_settings_summary <- renderUI({
+    result <- benchmark_results()
+    req(result)
+    
+    settings_summary_ui(
+      settings = result$settings,
+      run_ok = isTRUE(result$ok)
+    )
+  })
   
   
   # ---------------- full-results tables ---------------- #
+  
   model_comp_display <- reactive({
-    require_benchmark_ok()
+    result <- benchmark_checked()
     
     make_model_comp_table(
-      dat = benchmark_results()$run_result$model_comp_table,
+      dat = result$run_result$model_comp_table,
       format_for_display = TRUE
     )
   })
   
   
   model_comp_download <- reactive({
-    require_benchmark_ok()
+    result <- benchmark_checked()
     
     make_model_comp_table(
-      dat = benchmark_results()$run_result$model_comp_table,
+      dat = result$run_result$model_comp_table,
       format_for_display = FALSE
     )
   })
   
   
   # ---------------- gt outputs ---------------- #
+  
   output$rank_summary_tbl <- render_gt({
-    require_benchmark_ok()
+    result <- benchmark_checked()
     
-    tbl_rank_summary(benchmark_results()$viz)
+    tbl_rank_summary(result$viz)
   })
   
   
   output$year_coef_tbl <- render_gt({
-    require_benchmark_ok()
+    result <- benchmark_checked()
     
     make_year_coef_gt(
-      run = benchmark_results()$run_result,
-      year = as.numeric(input$selection_year)
+      run = result$run_result,
+      year = result$run_params$selection_year
     )
   })
   
   
   # ---------------- plot outputs ---------------- #
-  output$rank_heat <- renderPlot({
-    require_benchmark_ok()
+  
+  output$stability_summary <- renderPlot({
+    result <- benchmark_checked()
     
-    p_rank_heat(benchmark_results()$viz)
+    p_stability_summary(result$viz)
+  }, res = res)
+  
+  output$rank_heat <- renderPlot({
+    result <- benchmark_checked()
+    
+    p_rank_heat(result$viz)
   }, res = res)
   
   
   output$dumbbell_all <- renderPlot({
-    require_benchmark_ok()
+    result <- benchmark_checked()
     
-    p_dumbbell_all(benchmark_results()$viz)
+    p_dumbbell_all(result$viz)
   }, res = res)
   
   
   output$rank_shift_summary <- renderPlot({
-    require_benchmark_ok()
+    result <- benchmark_checked()
     
-    p_rank_shift_summary(benchmark_results()$viz)
+    p_rank_shift_summary(result$viz)
   }, res = res)
   
   
   output$metric_facets <- renderPlot({
-    require_benchmark_ok()
+    result <- benchmark_checked()
     
-    p_metric_facets(benchmark_results()$viz)
+    p_metric_facets(result$viz)
   }, res = res)
   
   
   # ---------------- full results table ---------------- #
+  
   output$model_comp_dt <- renderDT({
-    require_benchmark_ok()
-    
     dat <- model_comp_display()
     
     left_cols <- match(
@@ -465,6 +635,7 @@ server <- function(input, output, session) {
         "District name",
         "School name",
         "School code",
+        "Assessment",
         "Grade"
       ),
       names(dat),
@@ -525,13 +696,12 @@ server <- function(input, output, session) {
   
   
   # ---------------- full results download ---------------- #
+  
   output$download_model_comp_full <- downloadHandler(
     filename = function() {
       paste0("benchmark_comparison_full_", Sys.Date(), ".xlsx")
     },
     content = function(file) {
-      require_benchmark_ok()
-      
       write_model_comp_workbook(
         dat = model_comp_download(),
         file = file

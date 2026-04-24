@@ -105,10 +105,10 @@ choose_nfolds <- function(n_schools,
                           small_sample_cutoff = 60,
                           small_sample_nfolds = 5) {
   if (n_schools < small_sample_cutoff) {
-    return(small_sample_nfolds)
+    return(min(small_sample_nfolds, n_schools))
   }
   
-  default_nfolds
+  min(default_nfolds, n_schools)
 }
 
 get_term_group <- function(term_part) {
@@ -362,7 +362,20 @@ run_benchmark_workflow <- function(model_key = "grade_03__DeSSA.ELA",
   }
   
   n_schools <- n_distinct(df[[SETTINGS$school_id]])
-  nfolds_use <- choose_nfolds(n_schools)
+  
+  if (n_schools < SETTINGS$min_schools_for_cv) {
+    stop(
+      paste0(
+        "At least ", SETTINGS$min_schools_for_cv,
+        " schools are required after filtering to run grouped cross-validation. ",
+        "Only ", n_schools, " schools remain. Lower the minimum tested-student ",
+        "threshold or choose a broader assessment/grade scope."
+      ),
+      call. = FALSE
+    )
+  }
+  
+  nfolds_use <- min(choose_nfolds(n_schools), n_schools)
   
   predictor_groups <- list(
     school_year = names(df)[startsWith(names(df), "SchoolYear.")],
@@ -713,6 +726,7 @@ run_benchmark_workflow <- function(model_key = "grade_03__DeSSA.ELA",
       DistrictName,
       SchoolName,
       SchoolCode,
+      AssessmentLabel,
       ModelGrade,
       all_of(SETTINGS$outcome),
       n,

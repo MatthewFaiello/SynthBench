@@ -128,8 +128,9 @@ model_tabs_note <- paste(
 
 model_tabs_detail <- paste(
   "Each checkbox turns on a group of related model inputs.",
-  "Depending on the group, that may mean one yes-or-no input, several category indicators,",
-  "or a single continuous measure, such as percent missing or student units."
+  "Most groups are school-year composition measures from the unit-count data;",
+  "percent missing scores comes from the assessment records.",
+  "These features define the comparison frame and should not be read as causal explanations."
 )
 
 results_subtitle <- paste(
@@ -418,6 +419,9 @@ ui <- fluidPage(
                 
                 conditionalPanel(
                   condition = "input.run_models > 0",
+                  
+                  uiOutput("current_settings_summary"),
+                  
                   div(
                     class = "sb-results-tabs",
                     
@@ -440,6 +444,15 @@ ui <- fluidPage(
                           "Shows year-specific standardized coefficient weights for the selected year.",
                           "Use this as a model diagnostic, not as causal evidence.",
                           "Group rows summarize relative coefficient weight across benchmark groups, and feature rows show the individual feature coefficients that contribute to those group summaries."
+                        )
+                      ),
+                      
+                      sb_result_tab(
+                        "Split stability",
+                        plotOutput("stability_summary", height = "520px"),
+                        paste(
+                          "Shows how much tracked-school results vary across repeated grouped-CV fold assignments.",
+                          "This helps separate benchmark-definition sensitivity from fold-assignment instability."
                         )
                       ),
                       

@@ -14,7 +14,8 @@ SETTINGS <- list(
   cv_repeats = 5,
   cv_seed_start = 1000,
   neutral_band_multiplier = 1 / 3,
-  comparison_top_n = 10
+  comparison_top_n = 10,
+  min_schools_for_cv = 5
 )
 
 # Each toggle can be TRUE or FALSE.
