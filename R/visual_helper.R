@@ -25,14 +25,14 @@
 # Structure:
 #   1) settings
 #   2) theme
-#   3) data prep
-#   4) outputs
+#   3) data prep helpers
+#   4) build_visual_data
+#   5) outputs
 #
 # Notes:
 #   - Built for historical benchmark comparisons only
-#   - Expects model_comp_plot from global.R
-#   - Can optionally use score_all from global.R to add
-#     split-stability diagnostics for the tracked schools
+#   - Expects model_comp_plot from run_benchmark_workflow()
+#   - Can optionally use score_all to add split-stability diagnostics
 #   - Supports up to 4 total models: 1 baseline + up to 3 alternatives
 # =========================================================
 
@@ -46,7 +46,9 @@ library(stringr)
 library(grid)
 library(ggtext)
 
+
 # --------------------------- 1) plot settings --------------------------- #
+
 PLOT_SETTINGS <- list(
   base_size = 12
 )
@@ -63,7 +65,9 @@ dde_border_strong <- "#c7d5e2"
 dde_text <- "#1f2937"
 dde_muted <- "#5b6875"
 
+
 # --------------------------- 2) theme --------------------------- #
+
 theme_modelcomp <- function(base_size = PLOT_SETTINGS$base_size) {
   theme_minimal(base_size = base_size) +
     theme(
@@ -96,7 +100,11 @@ theme_modelcomp <- function(base_size = PLOT_SETTINGS$base_size) {
       axis.text.y = element_text(size = rel(0.92), hjust = 1, lineheight = 0.95),
       axis.text.x = element_text(size = rel(0.92)),
       
-      strip.background = element_rect(fill = dde_orange_soft, color = dde_border_strong, linewidth = 0.6),
+      strip.background = element_rect(
+        fill = dde_orange_soft,
+        color = dde_border_strong,
+        linewidth = 0.6
+      ),
       strip.text = element_text(face = "bold", color = dde_blue_dark),
       
       legend.position = "bottom",
@@ -106,11 +114,13 @@ theme_modelcomp <- function(base_size = PLOT_SETTINGS$base_size) {
     )
 }
 
+
 empty_plot <- function(label) {
   ggplot() +
     annotate("text", x = 1, y = 1, label = label, color = dde_text) +
     theme_void()
 }
+
 
 baseline_caption <- function(viz) {
   viz$plot_dat %>%
@@ -120,16 +130,19 @@ baseline_caption <- function(viz) {
     pull(formula_label)
 }
 
-# --------------------------- 3) data prep --------------------------- #
-build_visual_data <- function(model_comp_plot,
-                              baseline_model,
-                              score_all = NULL) {
+
+# --------------------------- 3) data prep helpers --------------------------- #
+
+prepare_model_comp_wide <- function(model_comp_plot) {
   
   required_cols <- c(
     "model",
+    "formula_label",
     "SchoolYear",
+    "DistrictName",
     "SchoolName",
     "SchoolCode",
+    "ModelGrade",
     "ScaleScore.mean",
     "n",
     "metric",
@@ -148,7 +161,7 @@ build_visual_data <- function(model_comp_plot,
     )
   }
   
-  plot_dat_wide <- model_comp_plot %>%
+  model_comp_plot %>%
     mutate(
       model = as.character(model),
       SchoolYear = as.character(SchoolYear),
@@ -170,6 +183,10 @@ build_visual_data <- function(model_comp_plot,
       names_from = metric,
       values_from = value
     )
+}
+
+
+prepare_baseline_reference <- function(plot_dat_wide, baseline_model) {
   
   if (!baseline_model %in% unique(plot_dat_wide$model)) {
     stop("baseline_model was not found in model_comp_plot.", call. = FALSE)
@@ -191,6 +208,7 @@ build_visual_data <- function(model_comp_plot,
   
   top_label <- paste0("Top ", top_n, " in baseline")
   bottom_label <- paste0("Bottom ", top_n, " in baseline")
+  
   tracked_school_note <- paste0(
     "Tracked schools only: the top ", top_n,
     " and bottom ", top_n,
@@ -207,7 +225,20 @@ build_visual_data <- function(model_comp_plot,
     ) %>%
     select(SchoolCode, baseline_rank, baseline_group)
   
-  school_label_order <- baseline_rows %>%
+  list(
+    baseline_rows = baseline_rows,
+    baseline_reference = baseline_reference,
+    top_n = top_n,
+    top_label = top_label,
+    bottom_label = bottom_label,
+    tracked_school_note = tracked_school_note
+  )
+}
+
+
+make_school_label_order <- function(baseline_rows, baseline_reference) {
+  
+  baseline_rows %>%
     left_join(baseline_reference, by = "SchoolCode") %>%
     arrange(baseline_rank) %>%
     transmute(
@@ -219,12 +250,24 @@ build_visual_data <- function(model_comp_plot,
       )
     ) %>%
     pull(school_label)
+}
+
+
+add_baseline_tracking <- function(plot_dat_wide, baseline_info) {
+  
+  school_label_order <- make_school_label_order(
+    baseline_rows = baseline_info$baseline_rows,
+    baseline_reference = baseline_info$baseline_reference
+  )
   
   plot_dat <- plot_dat_wide %>%
-    left_join(baseline_reference, by = "SchoolCode") %>%
+    left_join(baseline_info$baseline_reference, by = "SchoolCode") %>%
     mutate(
       model = factor(model, levels = unique(plot_dat_wide$model)),
-      baseline_group = factor(baseline_group, levels = c(top_label, bottom_label)),
+      baseline_group = factor(
+        baseline_group,
+        levels = c(baseline_info$top_label, baseline_info$bottom_label)
+      ),
       rank_change = .performance_rank_cv - baseline_rank,
       abs_rank_change = abs(rank_change),
       rank_arrow = case_when(
@@ -242,13 +285,59 @@ build_visual_data <- function(model_comp_plot,
       school_label = factor(school_label, levels = school_label_order)
     )
   
-  comparison_models <- setdiff(unique(as.character(plot_dat$model)), baseline_model)
-  
-  baseline_group_colors <- c(
+  list(
+    plot_dat = plot_dat,
+    school_label_order = school_label_order
+  )
+}
+
+
+make_baseline_group_colors <- function(top_label, bottom_label) {
+  c(
     setNames(dde_blue, top_label),
     setNames(dde_orange, bottom_label)
   )
+}
+
+
+# --------------------------- 4) build visual data --------------------------- #
+
+build_visual_data <- function(model_comp_plot,
+                              baseline_model,
+                              score_all = NULL) {
   
+  # Step 1: prepare the tracked-school comparison data
+  plot_dat_wide <- prepare_model_comp_wide(model_comp_plot)
+  
+  # Step 2: identify top/bottom baseline schools
+  baseline_info <- prepare_baseline_reference(
+    plot_dat_wide = plot_dat_wide,
+    baseline_model = baseline_model
+  )
+  
+  # Step 3: attach baseline rank and baseline group labels
+  tracking_info <- add_baseline_tracking(
+    plot_dat_wide = plot_dat_wide,
+    baseline_info = baseline_info
+  )
+  
+  plot_dat <- tracking_info$plot_dat
+  school_label_order <- tracking_info$school_label_order
+  
+  top_n <- baseline_info$top_n
+  top_label <- baseline_info$top_label
+  bottom_label <- baseline_info$bottom_label
+  tracked_school_note <- baseline_info$tracked_school_note
+  
+  comparison_models <- setdiff(unique(as.character(plot_dat$model)), baseline_model)
+  
+  baseline_group_colors <- make_baseline_group_colors(
+    top_label = top_label,
+    bottom_label = bottom_label
+  )
+  
+  
+  # Step 4: summarize rank movement across alternative models
   model_sensitivity_summary <- plot_dat %>%
     filter(model != baseline_model) %>%
     group_by(model) %>%
@@ -271,6 +360,8 @@ build_visual_data <- function(model_comp_plot,
     "No comparison models were found."
   }
   
+  
+  # Step 5: build dumbbell-plot data
   dumbbell_dat <- plot_dat %>%
     filter(model != baseline_model) %>%
     transmute(
@@ -284,17 +375,24 @@ build_visual_data <- function(model_comp_plot,
     )
   
   if (nrow(dumbbell_dat) > 0) {
-    max_rank <- max(c(dumbbell_dat$baseline_rank, dumbbell_dat$comparison_rank), na.rm = TRUE)
+    max_rank <- max(
+      c(dumbbell_dat$baseline_rank, dumbbell_dat$comparison_rank),
+      na.rm = TRUE
+    )
+    
     x_breaks <- sort(unique(c(
       1,
       pretty(c(dumbbell_dat$baseline_rank, dumbbell_dat$comparison_rank), n = 6)
     )))
+    
     x_breaks <- x_breaks[x_breaks >= 1 & x_breaks <= ceiling(max_rank)]
   } else {
     x_breaks <- pretty(plot_dat$baseline_rank, n = 6)
     x_breaks <- x_breaks[x_breaks >= 1]
   }
   
+  
+  # Step 6: build metric-facet data
   metric_long <- plot_dat %>%
     select(
       SchoolCode,
@@ -322,6 +420,8 @@ build_visual_data <- function(model_comp_plot,
       )
     )
   
+  
+  # Step 7: build rank summary table
   rank_summary <- plot_dat %>%
     group_by(
       SchoolCode,
@@ -364,6 +464,8 @@ build_visual_data <- function(model_comp_plot,
       `Largest scaled-residual shift`
     )
   
+  
+  # Step 8: optionally add split-stability diagnostics
   stability_cols <- c(
     ".pred_cv_sd",
     ".performance_rank_cv_sd",
@@ -473,6 +575,8 @@ build_visual_data <- function(model_comp_plot,
     stability_summary <- tibble()
   }
   
+  
+  # Step 9: return all visual inputs
   list(
     plot_dat = plot_dat,
     baseline_model = baseline_model,
@@ -491,7 +595,9 @@ build_visual_data <- function(model_comp_plot,
   )
 }
 
-# --------------------------- 4) outputs --------------------------- #
+
+# --------------------------- 5) outputs --------------------------- #
+
 p_rank_heat <- function(viz) {
   ggplot(viz$plot_dat, aes(x = model, y = fct_rev(school_label))) +
     geom_tile(fill = dde_surface_soft, color = dde_border, linewidth = 0.6) +
@@ -518,6 +624,7 @@ p_rank_heat <- function(viz) {
       panel.spacing.y = unit(1.05, "lines")
     )
 }
+
 
 p_dumbbell_all <- function(viz) {
   if (nrow(viz$dumbbell_dat) == 0) {
@@ -567,6 +674,7 @@ p_dumbbell_all <- function(viz) {
     )
 }
 
+
 p_rank_shift_summary <- function(viz) {
   if (nrow(viz$model_sensitivity_summary) == 0) {
     return(empty_plot("No comparison models available."))
@@ -591,6 +699,7 @@ p_rank_shift_summary <- function(viz) {
     ) +
     theme_modelcomp()
 }
+
 
 p_metric_facets <- function(viz) {
   ggplot(
@@ -620,11 +729,12 @@ p_metric_facets <- function(viz) {
     theme_modelcomp()
 }
 
+
 p_stability_summary <- function(viz) {
   if (!isTRUE(viz$has_stability_data) || nrow(viz$stability_summary) == 0) {
     return(
       empty_plot(
-        "No split-stability data were supplied. Pass score_all from global.R to build_visual_data() to enable this plot."
+        "No split-stability data were supplied. Pass score_all to build_visual_data() to enable this plot."
       )
     )
   }
@@ -652,6 +762,7 @@ p_stability_summary <- function(viz) {
     ) +
     theme_modelcomp()
 }
+
 
 tbl_rank_summary <- function(viz) {
   viz$rank_summary %>%

@@ -396,6 +396,16 @@ ui <- fluidPage(
                       ),
                       
                       sb_result_tab(
+                        title = "Coefficient influence",
+                        output_ui = gt_output("year_coef_tbl"),
+                        caption = paste(
+                          "Shows year-specific standardized coefficient influence for the selected year.",
+                          "Group rows summarize relative influence across benchmark groups,",
+                          "and feature rows show the individual feature coefficients that contribute to those group summaries."
+                        )
+                      ),
+                      
+                      sb_result_tab(
                         title = "Rank comparison",
                         output_ui = plotOutput("dumbbell_all", height = "90vh"),
                         caption = paste(
