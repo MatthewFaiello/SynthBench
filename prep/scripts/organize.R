@@ -274,25 +274,122 @@ training_matrix <- training_base %>%
   )
 
 # =========================================================
-# 4) split into one dataset per model
+# 4) final app input tables
 # =========================================================
 
-training_list <- training_matrix %>%
+make_model_key <- function(model_grade, assessment_label) {
+  paste0(
+    "grade_",
+    model_grade,
+    "__",
+    make.names(assessment_label)
+  )
+}
+
+app_data_flat <- training_matrix %>%
+  mutate(
+    SchoolYear = as.integer(SchoolYear),
+    SchoolCode = as.character(SchoolCode),
+    ModelGrade = as.character(ModelGrade),
+    AssessmentLabel = as.character(AssessmentLabel),
+    model_key = make_model_key(ModelGrade, AssessmentLabel),
+    .before = SchoolYear
+  ) %>%
+  arrange(ModelGrade, AssessmentLabel, SchoolYear, SchoolCode)
+
+lea_meta_flat <- schools_meta %>%
+  mutate(
+    SchoolYear = as.integer(SchoolYear),
+    SchoolCode = as.character(SchoolCode),
+    ModelGrade = as.character(ModelGrade)
+  ) %>%
+  distinct(
+    SchoolYear,
+    DistrictName,
+    SchoolName,
+    SchoolCode,
+    ModelGrade
+  ) %>%
+  arrange(ModelGrade, SchoolYear, DistrictName, SchoolName, SchoolCode)
+
+
+# =========================================================
+# 5) optional legacy list output
+# Keep this temporarily until R/data.R is refactored.
+# =========================================================
+
+training_list <- app_data_flat %>%
+  select(-model_key) %>%
   group_split(ModelGrade, AssessmentLabel, .keep = TRUE)
 
-training_list_names <- training_matrix %>%
-  distinct(ModelGrade, AssessmentLabel) %>%
+training_list_names <- app_data_flat %>%
+  distinct(ModelGrade, AssessmentLabel, model_key) %>%
   arrange(ModelGrade, AssessmentLabel) %>%
-  transmute(name = paste0("grade_", ModelGrade, "__", make.names(AssessmentLabel))) %>%
-  pull(name)
+  pull(model_key)
 
 names(training_list) <- training_list_names
 
+
 # =========================================================
-# 5) write app data
+# 6) validation checks
 # =========================================================
 
-dir.create(output_dir, recursive = TRUE)
+required_app_cols <- c(
+  "model_key",
+  "SchoolYear",
+  "SchoolCode",
+  "ModelGrade",
+  "AssessmentLabel",
+  "ScaleScore.mean",
+  "n",
+  "w_sqrt_n",
+  "na",
+  "units"
+)
 
-write_rds(schools_meta, file.path(output_dir, "LEA_META.rds"))
+missing_app_cols <- setdiff(required_app_cols, names(app_data_flat))
+
+if (length(missing_app_cols) > 0) {
+  stop(
+    "app_data_flat is missing required columns: ",
+    paste(missing_app_cols, collapse = ", "),
+    call. = FALSE
+  )
+}
+
+duplicate_app_rows <- app_data_flat %>%
+  count(SchoolYear, SchoolCode, ModelGrade, AssessmentLabel) %>%
+  filter(n > 1)
+
+if (nrow(duplicate_app_rows) > 0) {
+  stop(
+    "app_data_flat has duplicate school-year assessment rows.",
+    call. = FALSE
+  )
+}
+
+duplicate_meta_rows <- lea_meta_flat %>%
+  count(SchoolYear, SchoolCode, ModelGrade) %>%
+  filter(n > 1)
+
+if (nrow(duplicate_meta_rows) > 0) {
+  stop(
+    "lea_meta_flat has duplicate school-year-grade metadata rows.",
+    call. = FALSE
+  )
+}
+
+
+# =========================================================
+# 7) write app data
+# =========================================================
+
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+# New flat app inputs
+write_csv(app_data_flat, file.path(output_dir, "APP_DATA_flat.csv"))
+write_csv(lea_meta_flat, file.path(output_dir, "LEA_META.csv"))
+
+# Legacy app inputs, kept until the app is fully switched to flat data
 write_rds(training_list, file.path(output_dir, "APP_DATA.rds"))
+write_rds(lea_meta_flat, file.path(output_dir, "LEA_META.rds"))

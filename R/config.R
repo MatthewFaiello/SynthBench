@@ -13,8 +13,9 @@ SETTINGS <- list(
   nfolds = 10,
   cv_repeats = 5,
   cv_seed_start = 1000,
-  neutral_band_multiplier = 1 / 3,
-  comparison_top_n = 10,
+  neutral_band_multiplier = 0.5,
+  comparison_band_count = 10,
+  comparison_band_index = 1,
   min_schools_for_cv = 5
 )
 
@@ -58,10 +59,37 @@ GROUP_CHOICES <- c(
   "SPED Code"                                   = "sped"
 )
 
+# Column patterns used to find model features in APP_DATA_FLAT.
+#
+# These names should align with:
+# - SETTINGS$mandatory_group
+# - DEFAULT_GROUP_TOGGLES
+# - GROUP_CHOICES values
+#
+# Use regular expressions so exact columns like "na" and "units"
+# do not accidentally match unrelated columns.
+FEATURE_GROUP_PATTERNS <- c(
+  school_year  = "^SchoolYear\\.",
+  na           = "^na$",
+  units        = "^units$",
+  county       = "^County_Name\\.",
+  ell          = "^ELL\\.",
+  foster_care  = "^FosterCare\\.",
+  gender       = "^Gender\\.",
+  geography    = "^Geography\\.",
+  homeless     = "^Homeless\\.",
+  immersion    = "^Immersion\\.",
+  low_income   = "^LowIncome\\.",
+  migrant      = "^Migrant\\.",
+  military_dep = "^MilitaryDep\\.",
+  race         = "^RaceReportTitle\\.",
+  sped         = "^SPEDCode\\."
+)
+
 # Default model definitions shown when the app first opens
 DEFAULT_MODEL_SELECTIONS <- list(
-  Baseline    = c("low_income"),
+  Baseline    = c("low_income", "ell", "sped"),
   `Alt 1`     = c("low_income", "ell"),
   `Alt 2`     = c("low_income", "sped"),
-  `Alt 3`     = c("low_income", "ell", "sped")
+  `Alt 3`     = c("low_income")
 )

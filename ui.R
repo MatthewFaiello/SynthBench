@@ -16,9 +16,21 @@ default_year <- unname(tail(default_year_choices, 1))
 default_n <- get_range_n(default_scope_1, default_scope_2)
 default_n_min <- default_n$n_min
 default_n_max <- default_n$n_max
-default_n_value <- max(default_n_min, 10)
+default_n_value <- min(max(10, default_n_min), default_n_max)
 
 default_neutral_band <- SETTINGS$neutral_band_multiplier
+
+default_comparison_band_index <- SETTINGS$comparison_band_index
+comparison_band_choices <- setNames(
+  seq_len(floor(SETTINGS$comparison_band_count / 2)),
+  vapply(seq_len(floor(SETTINGS$comparison_band_count / 2)), function(i) {
+    labels <- get_comparison_band_labels(
+      band_index = i,
+      band_count = SETTINGS$comparison_band_count
+    )
+    paste0(labels$lower_label, " vs ", labels$upper_label)
+  }, character(1))
+)
 
 
 # ---------------- small UI helpers ---------------- #
@@ -89,7 +101,8 @@ min_students_note <- paste(
 
 step2_note <- paste(
   "These settings control which year is highlighted",
-  "and how large a benchmark gap must be before it is labeled above or below benchmark."
+  "and how large a benchmark gap must be before it is labeled above or below benchmark.",
+  "They are captured when you run the benchmark models."
 )
 
 year_callout <- paste(
@@ -100,6 +113,12 @@ year_callout <- paste(
 year_note <- paste(
   "Use this to focus the results after the benchmark models are trained",
   "on the full selected historical dataset."
+)
+
+comparison_band_note <- paste(
+  "Controls only the detailed tracked-school plots.",
+  "The app tracks the selected baseline rank band and its mirror band on the other side of the baseline ranking.",
+  "Aggregate diagnostics such as average rank movement and split stability still use all schools in the selected year."
 )
 
 neutral_band_note <- paste(
@@ -118,7 +137,7 @@ model_method_callout <- paste(
   "The boxes you check here define the model features and the comparison frame.",
   "Each model uses school year, the benchmark features you choose, and year-specific adjustments.",
   "Those features define the comparison being made; they are not treated as the true causes of performance.",
-  "The app uses repeated grouped cross-validation, so each school's benchmark score is based on held-out school histories rather than the same rows used to fit that run."
+  "The app uses repeated grouped cross-validation, so each school's benchmark score is based on held-out school histories rather than the same rows used to fit that run. These held-out benchmark scores support historical comparison, but they should not be read as external validation, causal evidence, or future-year forecasts."
 )
 
 model_tabs_note <- paste(
@@ -135,13 +154,19 @@ model_tabs_detail <- paste(
 
 results_subtitle <- paste(
   "Review how results change across benchmark definitions in the selected year.",
-  "Most plots track the top and bottom baseline schools; the full results table includes all schools."
+  "Detailed school-level plots track the selected paired baseline rank bands.",
+  "Average rank movement, split stability, and the full results table use all schools in the selected year."
 )
 
 results_guide <- paste(
   "First, identify the comparison frame from the selected scope and benchmark groups.",
   "Second, compare the observed score, benchmark score, and benchmark gap.",
   "Third, use the within-year rank, scaled benchmark gap, and benchmark label to judge whether the interpretation changes across benchmark definitions."
+)
+
+results_view_control_note <- paste(
+  "This does not rerun the benchmark models.",
+  "It only changes which baseline rank bands are tracked in the detailed school-level comparison views."
 )
 
 results_placeholder_title <- "Ready to run the benchmark models"
@@ -239,7 +264,7 @@ ui <- fluidPage(
             
             sb_sidebar_section(
               step = 2,
-              title = "Set comparison rules",
+              title = "Set benchmark reading rules",
               note = step2_note,
               
               sb_callout(
@@ -258,6 +283,7 @@ ui <- fluidPage(
                 ),
                 p(class = "sb-control-note", year_note)
               ),
+              
               
               div(
                 class = "sb-control-block",
@@ -421,10 +447,27 @@ ui <- fluidPage(
                   condition = "input.run_models > 0",
                   
                   uiOutput("current_settings_summary"),
-                  
+
+                  div(
+                    class = "sb-card sb-view-controls",
+                    div(class = "sb-step", "View control"),
+                    h2(class = "sb-section-title", "Adjust displayed comparison"),
+                    p(class = "sb-section-note", results_view_control_note),
+                    div(
+                      class = "sb-control-block",
+                      selectInput(
+                        inputId = "comparison_band_index",
+                        label = "Tracked baseline rank bands",
+                        choices = comparison_band_choices,
+                        selected = default_comparison_band_index
+                      ),
+                      p(class = "sb-control-note", comparison_band_note)
+                    )
+                  ),
+
                   div(
                     class = "sb-results-tabs",
-                    
+
                     tabsetPanel(
                       id = "visual_tabs",
                       
@@ -432,7 +475,7 @@ ui <- fluidPage(
                         title = "Benchmarking overview",
                         output_ui = gt_output("rank_summary_tbl"),
                         caption = paste(
-                          "Summarizes how the baseline set of tracked schools changes across benchmark definitions",
+                          "Summarizes how the selected baseline rank-band schools change across benchmark definitions",
                           "in the selected year."
                         )
                       ),
@@ -451,8 +494,9 @@ ui <- fluidPage(
                         "Split stability",
                         plotOutput("stability_summary", height = "520px"),
                         paste(
-                          "Shows how much tracked-school results vary across repeated grouped-CV fold assignments.",
-                          "This helps separate benchmark-definition sensitivity from fold-assignment instability."
+                          "Shows how much results vary across repeated grouped-CV fold assignments",
+                          "for all schools in the selected year.",
+                          "This helps separate fold-assignment stability from benchmark-definition sensitivity."
                         )
                       ),
                       
@@ -460,7 +504,7 @@ ui <- fluidPage(
                         title = "Rank comparison",
                         output_ui = plotOutput("dumbbell_all", height = "90vh"),
                         caption = paste(
-                          "Compares each tracked school's baseline rank with its rank under alternative benchmark definitions.",
+                          "Compares each selected rank-band school's baseline rank with its rank under alternative benchmark definitions.",
                           "Smaller rank numbers indicate stronger benchmark-adjusted performance within year."
                         )
                       ),
@@ -469,7 +513,7 @@ ui <- fluidPage(
                         title = "Rank movement",
                         output_ui = plotOutput("rank_heat", height = "90vh"),
                         caption = paste(
-                          "Shows how each tracked baseline school's within-year rank changes",
+                          "Shows how each selected baseline rank-band school's within-year rank changes",
                           "across benchmark definitions."
                         )
                       ),
@@ -478,8 +522,8 @@ ui <- fluidPage(
                         title = "Average rank movement",
                         output_ui = plotOutput("rank_shift_summary", height = "60vh"),
                         caption = paste(
-                          "Shows the average amount of rank movement for the tracked baseline schools",
-                          "across benchmark definitions."
+                          "Summarizes average absolute rank movement across all schools in the selected year",
+                          "when moving from the baseline model to each alternative benchmark definition."
                         )
                       ),
                       
@@ -488,7 +532,7 @@ ui <- fluidPage(
                         output_ui = plotOutput("metric_facets", height = "70vh"),
                         caption = paste(
                           "Compares benchmark scores, benchmark gaps, scaled benchmark gaps, and within-year ranks",
-                          "for the tracked baseline schools across benchmark definitions."
+                          "for the selected baseline rank-band schools across benchmark definitions."
                         )
                       ),
                       

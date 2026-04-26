@@ -2,36 +2,14 @@
 # visual_helper.R — benchmark comparison visuals
 # =========================================================
 # Purpose:
-#   Turn model_comp_plot into the main comparison plots and
+#   Turn model_comp_plot/model_comp_plot_all into the main comparison plots and
 #   summary tables used to review how school rankings and
 #   benchmark results change across alternative benchmark
 #   model definitions.
 #
-# Methodological position:
-#   - The core visual task is to show benchmark-definition
-#     sensitivity for the tracked baseline schools and, when
-#     available, to separate that from split-assignment stability.
-#
-# Main outputs:
-#   - p_rank_heat
-#   - p_dumbbell_all
-#   - p_rank_shift_summary
-#   - p_metric_facets
-#   - p_stability_summary
-#   - tbl_rank_summary
-#
-# Structure:
-#   1) settings
-#   2) theme
-#   3) data prep helpers
-#   4) build_visual_data
-#   5) outputs
-#
-# Notes:
-#   - Built for historical benchmark comparisons only
-#   - Expects model_comp_plot from run_benchmark_workflow()
-#   - Can optionally use score_all to add split-stability diagnostics
-#   - Supports up to 4 total models: 1 baseline + up to 3 alternatives
+# Depends on:
+#   - R/visual_theme.R for PLOT_SETTINGS, dde_* constants,
+#     theme_modelcomp(), and empty_plot()
 # =========================================================
 
 library(dplyr)
@@ -45,80 +23,7 @@ library(grid)
 library(ggtext)
 
 
-# --------------------------- 1) plot settings --------------------------- #
-
-PLOT_SETTINGS <- list(
-  base_size = 12
-)
-
-dde_blue <- "#194a78"
-dde_blue_dark <- "#123758"
-dde_orange <- "#d98b00"
-dde_orange_soft <- "#fff7ea"
-dde_bg <- "#f5f7fb"
-dde_surface <- "#ffffff"
-dde_surface_soft <- "#fbfcfe"
-dde_border <- "#d8e2ec"
-dde_border_strong <- "#c7d5e2"
-dde_text <- "#1f2937"
-dde_muted <- "#5b6875"
-
-
-# --------------------------- 2) theme --------------------------- #
-
-theme_modelcomp <- function(base_size = PLOT_SETTINGS$base_size) {
-  theme_minimal(base_size = base_size) +
-    theme(
-      plot.background = element_rect(fill = dde_bg, color = NA),
-      panel.background = element_rect(fill = dde_surface, color = NA),
-      panel.grid.major.x = element_line(color = dde_border, linewidth = 0.35),
-      panel.grid.major.y = element_line(color = dde_border, linewidth = 0.35),
-      panel.grid.minor = element_blank(),
-      panel.border = element_rect(color = dde_border, fill = NA, linewidth = 0.6),
-      
-      plot.title = element_text(
-        face = "bold",
-        color = dde_blue_dark,
-        size = rel(1.25)
-      ),
-      plot.subtitle = element_textbox_simple(
-        color = dde_muted,
-        size = rel(0.9),
-        lineheight = 1.15,
-        margin = margin(b = 8),
-        padding = margin(0, 0, 0, 0),
-        fill = NA,
-        box.color = NA,
-        width = unit(1, "npc")
-      ),
-      plot.caption = element_text(color = dde_muted, hjust = 0, size = rel(0.9)),
-      
-      axis.title = element_text(color = dde_text, face = "bold"),
-      axis.text = element_text(color = dde_text),
-      axis.text.y = element_text(size = rel(0.92), hjust = 1, lineheight = 0.95),
-      axis.text.x = element_text(size = rel(0.92)),
-      
-      strip.background = element_rect(
-        fill = dde_orange_soft,
-        color = dde_border_strong,
-        linewidth = 0.6
-      ),
-      strip.text = element_text(face = "bold", color = dde_blue_dark),
-      
-      legend.position = "bottom",
-      legend.background = element_rect(fill = dde_bg, color = NA),
-      legend.key = element_rect(fill = dde_bg, color = NA),
-      plot.margin = margin(10, 14, 10, 10)
-    )
-}
-
-
-empty_plot <- function(label) {
-  ggplot() +
-    annotate("text", x = 1, y = 1, label = label, color = dde_text) +
-    theme_void()
-}
-
+# --------------------------- 1) data prep helpers --------------------------- #
 
 baseline_caption <- function(viz) {
   viz$plot_dat %>%
@@ -127,9 +32,6 @@ baseline_caption <- function(viz) {
     slice(1) %>%
     pull(formula_label)
 }
-
-
-# --------------------------- 3) data prep helpers --------------------------- #
 
 prepare_model_comp_wide <- function(model_comp_plot) {
   
@@ -184,7 +86,11 @@ prepare_model_comp_wide <- function(model_comp_plot) {
 }
 
 
-prepare_baseline_reference <- function(plot_dat_wide, baseline_model) {
+prepare_baseline_reference <- function(plot_dat_wide,
+                                       baseline_model,
+                                       comparison_focus_lookup = NULL,
+                                       comparison_lower_label = NULL,
+                                       comparison_upper_label = NULL) {
   
   if (!baseline_model %in% unique(plot_dat_wide$model)) {
     stop("baseline_model was not found in model_comp_plot.", call. = FALSE)
@@ -192,41 +98,118 @@ prepare_baseline_reference <- function(plot_dat_wide, baseline_model) {
   
   baseline_rows <- plot_dat_wide %>%
     filter(model == baseline_model) %>%
-    arrange(.performance_rank_cv)
+    mutate(SchoolCode = as.character(SchoolCode)) %>%
+    arrange(.performance_rank_cv, SchoolName, SchoolCode)
   
   if (nrow(baseline_rows) < 2) {
     stop("Not enough baseline rows to build comparison visuals.", call. = FALSE)
   }
   
-  top_n <- floor(nrow(baseline_rows) / 2)
-  
-  if (top_n < 1) {
-    stop("Could not create top/bottom baseline groups.", call. = FALSE)
+  if (!is.null(comparison_focus_lookup)) {
+    comparison_focus_lookup <- comparison_focus_lookup %>%
+      mutate(SchoolCode = as.character(SchoolCode))
+    
+    lookup_required <- c(
+      "SchoolCode",
+      "baseline_rank",
+      "baseline_group",
+      "baseline_group_order"
+    )
+    missing_lookup_cols <- setdiff(lookup_required, names(comparison_focus_lookup))
+    
+    if (length(missing_lookup_cols) > 0) {
+      stop(
+        paste0(
+          "comparison_focus_lookup is missing required columns: ",
+          paste(missing_lookup_cols, collapse = ", ")
+        ),
+        call. = FALSE
+      )
+    }
+    
+    baseline_reference <- baseline_rows %>%
+      select(SchoolCode) %>%
+      left_join(
+        comparison_focus_lookup %>%
+          select(
+            SchoolCode,
+            baseline_rank,
+            baseline_group,
+            baseline_group_order
+          ),
+        by = "SchoolCode"
+      ) %>%
+      filter(!is.na(baseline_group)) %>%
+      arrange(baseline_group_order, baseline_rank)
+  } else {
+    split_n <- floor(nrow(baseline_rows) / 2)
+    
+    if (split_n < 1) {
+      stop("Could not create paired baseline rank bands.", call. = FALSE)
+    }
+    
+    lower_label <- if (is.null(comparison_lower_label)) {
+      "selected higher baseline band"
+    } else {
+      comparison_lower_label
+    }
+    
+    upper_label <- if (is.null(comparison_upper_label)) {
+      "selected lower baseline band"
+    } else {
+      comparison_upper_label
+    }
+    
+    baseline_reference <- baseline_rows %>%
+      mutate(
+        baseline_rank = .performance_rank_cv,
+        baseline_group = case_when(
+          row_number() <= split_n ~ paste0("Baseline band ", lower_label),
+          TRUE ~ paste0("Baseline band ", upper_label)
+        ),
+        baseline_group_order = case_when(
+          row_number() <= split_n ~ 1L,
+          TRUE ~ 2L
+        )
+      ) %>%
+      select(SchoolCode, baseline_rank, baseline_group, baseline_group_order)
   }
   
-  top_label <- paste0("Top ", top_n, " in baseline")
-  bottom_label <- paste0("Bottom ", top_n, " in baseline")
+  if (nrow(baseline_reference) < 2) {
+    stop("Not enough tracked schools to build comparison visuals.", call. = FALSE)
+  }
+  
+  group_counts <- baseline_reference %>%
+    distinct(SchoolCode, baseline_group, baseline_group_order) %>%
+    count(baseline_group, baseline_group_order, name = "n_schools") %>%
+    arrange(baseline_group_order)
+  
+  top_label <- group_counts$baseline_group[1]
+  bottom_label <- group_counts$baseline_group[min(2, nrow(group_counts))]
+  lower_n <- group_counts$n_schools[1]
+  upper_n <- group_counts$n_schools[min(2, nrow(group_counts))]
   
   tracked_school_note <- paste0(
-    "Tracked schools only: the top ", top_n,
-    " and bottom ", top_n,
-    " schools from the baseline model."
+    "Tracked schools only: ",
+    top_label,
+    " (", lower_n, " schools) and ",
+    bottom_label,
+    " (", upper_n, " schools)."
   )
   
-  baseline_reference <- baseline_rows %>%
-    mutate(
-      baseline_rank = .performance_rank_cv,
-      baseline_group = case_when(
-        row_number() <= top_n ~ top_label,
-        TRUE ~ bottom_label
-      )
+  baseline_rows <- baseline_rows %>%
+    inner_join(
+      baseline_reference %>% select(SchoolCode, baseline_rank, baseline_group, baseline_group_order),
+      by = "SchoolCode"
     ) %>%
-    select(SchoolCode, baseline_rank, baseline_group)
+    arrange(baseline_group_order, baseline_rank)
   
   list(
     baseline_rows = baseline_rows,
     baseline_reference = baseline_reference,
-    top_n = top_n,
+    top_n = max(lower_n, upper_n),
+    lower_n = lower_n,
+    upper_n = upper_n,
     top_label = top_label,
     bottom_label = bottom_label,
     tracked_school_note = tracked_school_note
@@ -235,10 +218,8 @@ prepare_baseline_reference <- function(plot_dat_wide, baseline_model) {
 
 
 make_school_label_order <- function(baseline_rows, baseline_reference) {
-  
   baseline_rows %>%
-    left_join(baseline_reference, by = "SchoolCode") %>%
-    arrange(baseline_rank) %>%
+    arrange(baseline_group_order, baseline_rank) %>%
     transmute(
       school_label = paste0(
         "#",
@@ -259,7 +240,11 @@ add_baseline_tracking <- function(plot_dat_wide, baseline_info) {
   )
   
   plot_dat <- plot_dat_wide %>%
-    left_join(baseline_info$baseline_reference, by = "SchoolCode") %>%
+    left_join(
+      baseline_info$baseline_reference %>%
+        select(SchoolCode, baseline_rank, baseline_group, baseline_group_order),
+      by = "SchoolCode"
+    ) %>%
     mutate(
       model = factor(model, levels = unique(plot_dat_wide$model)),
       baseline_group = factor(
@@ -298,19 +283,51 @@ make_baseline_group_colors <- function(top_label, bottom_label) {
 }
 
 
+add_all_school_baseline_tracking <- function(plot_dat_wide_all, baseline_model) {
+  if (!baseline_model %in% unique(plot_dat_wide_all$model)) {
+    stop("baseline_model was not found in model_comp_plot_all.", call. = FALSE)
+  }
+  
+  baseline_all <- plot_dat_wide_all %>%
+    filter(model == baseline_model) %>%
+    transmute(
+      SchoolCode = as.character(SchoolCode),
+      baseline_rank_all = .performance_rank_cv
+    )
+  
+  plot_dat_wide_all %>%
+    left_join(baseline_all, by = "SchoolCode") %>%
+    mutate(
+      model = factor(model, levels = unique(plot_dat_wide_all$model)),
+      rank_change_all = .performance_rank_cv - baseline_rank_all,
+      abs_rank_change_all = abs(rank_change_all)
+    )
+}
+
+
 # --------------------------- 4) build visual data --------------------------- #
 
 build_visual_data <- function(model_comp_plot,
+                              model_comp_plot_all = model_comp_plot,
                               baseline_model,
-                              score_all = NULL) {
+                              score_all = NULL,
+                              comparison_focus_lookup = NULL,
+                              comparison_lower_label = NULL,
+                              comparison_upper_label = NULL) {
   
-  # Step 1: prepare the tracked-school comparison data
+  # Step 1: prepare both visual scopes
+  # - plot_dat_wide is the tracked top/bottom baseline-school sample.
+  # - plot_dat_wide_all is the full selected-year sample.
   plot_dat_wide <- prepare_model_comp_wide(model_comp_plot)
+  plot_dat_wide_all <- prepare_model_comp_wide(model_comp_plot_all)
   
-  # Step 2: identify top/bottom baseline schools
+  # Step 2: identify the selected paired baseline rank bands
   baseline_info <- prepare_baseline_reference(
     plot_dat_wide = plot_dat_wide,
-    baseline_model = baseline_model
+    baseline_model = baseline_model,
+    comparison_focus_lookup = comparison_focus_lookup,
+    comparison_lower_label = comparison_lower_label,
+    comparison_upper_label = comparison_upper_label
   )
   
   # Step 3: attach baseline rank and baseline group labels
@@ -321,6 +338,17 @@ build_visual_data <- function(model_comp_plot,
   
   plot_dat <- tracking_info$plot_dat
   school_label_order <- tracking_info$school_label_order
+  
+  plot_dat_all <- add_all_school_baseline_tracking(
+    plot_dat_wide_all = plot_dat_wide_all,
+    baseline_model = baseline_model
+  )
+  
+  all_school_note <- paste0(
+    "All schools in the selected year: ",
+    n_distinct(plot_dat_all$SchoolCode),
+    " schools."
+  )
   
   top_n <- baseline_info$top_n
   top_label <- baseline_info$top_label
@@ -336,13 +364,19 @@ build_visual_data <- function(model_comp_plot,
   
   
   # Step 4: summarize rank movement across alternative models
-  model_sensitivity_summary <- plot_dat %>%
+  # This aggregate diagnostic intentionally uses the full selected-year sample,
+  # not just the tracked top/bottom baseline schools.
+  model_sensitivity_summary <- plot_dat_all %>%
     filter(model != baseline_model) %>%
     group_by(model) %>%
     summarise(
-      mean_abs_rank_change = mean(abs_rank_change, na.rm = TRUE),
-      median_abs_rank_change = median(abs_rank_change, na.rm = TRUE),
-      max_abs_rank_change = max(abs_rank_change, na.rm = TRUE),
+      n_schools = n_distinct(SchoolCode),
+      mean_abs_rank_change = mean(abs_rank_change_all, na.rm = TRUE),
+      median_abs_rank_change = median(abs_rank_change_all, na.rm = TRUE),
+      p90_abs_rank_change = as.numeric(
+        quantile(abs_rank_change_all, 0.90, na.rm = TRUE)
+      ),
+      max_abs_rank_change = max(abs_rank_change_all, na.rm = TRUE),
       .groups = "drop"
     ) %>%
     arrange(desc(mean_abs_rank_change))
@@ -350,9 +384,11 @@ build_visual_data <- function(model_comp_plot,
   headline_takeaway <- if (nrow(model_sensitivity_summary) > 0) {
     paste0(
       as.character(model_sensitivity_summary$model[1]),
-      " shows the largest average rank movement among the tracked baseline schools (",
+      " shows the largest average rank movement across all schools in the selected year (",
       number(model_sensitivity_summary$mean_abs_rank_change[1], accuracy = 0.1),
-      " ranks)."
+      " ranks across ",
+      model_sensitivity_summary$n_schools[1],
+      " schools)."
     )
   } else {
     "No comparison models were found."
@@ -464,29 +500,43 @@ build_visual_data <- function(model_comp_plot,
   
   
   # Step 8: optionally add split-stability diagnostics
-  stability_cols <- c(
+  # This aggregate diagnostic intentionally uses the full selected-year sample,
+  # not just the tracked top/bottom baseline schools.
+  #
+  # The plotted stability tab intentionally shows only SD-style diagnostics:
+  #   - benchmark-score SD across repeated CV splits
+  #   - rank SD across repeated CV splits
+  # Benchmark-label consistency is retained in score_all for deeper review,
+  # but is not plotted in the main Split stability tab.
+  stability_plot_cols <- c(
     ".pred_cv_sd",
-    ".performance_rank_cv_sd",
+    ".performance_rank_cv_sd"
+  )
+  
+  stability_optional_cols <- c(
     ".performance_direction_mode",
     ".performance_direction_consistency",
     "n_cv_repeats_used"
   )
   
   stability_source <- NULL
-  has_stability_data <- all(stability_cols %in% names(plot_dat))
   
-  if (!has_stability_data && !is.null(score_all)) {
+  if (!is.null(score_all)) {
     score_all_required <- c(
       "model",
       "SchoolYear",
       "SchoolCode",
-      stability_cols
+      stability_plot_cols
     )
     
     if (all(score_all_required %in% names(score_all))) {
-      comparison_years <- unique(plot_dat_wide$SchoolYear)
-      comparison_schools <- unique(plot_dat_wide$SchoolCode)
-      comparison_models_all <- unique(as.character(plot_dat_wide$model))
+      comparison_years <- unique(plot_dat_wide_all$SchoolYear)
+      comparison_schools <- unique(plot_dat_wide_all$SchoolCode)
+      comparison_models_all <- unique(as.character(plot_dat_wide_all$model))
+      stability_keep_cols <- intersect(
+        c(stability_plot_cols, stability_optional_cols),
+        names(score_all)
+      )
       
       stability_source <- score_all %>%
         mutate(
@@ -503,51 +553,41 @@ build_visual_data <- function(model_comp_plot,
           model,
           SchoolYear,
           SchoolCode,
-          all_of(stability_cols)
+          all_of(stability_keep_cols)
+        ) %>%
+        left_join(
+          plot_dat_wide_all %>%
+            distinct(
+              model,
+              SchoolYear,
+              SchoolCode,
+              SchoolName
+            ) %>%
+            mutate(
+              model = as.character(model),
+              SchoolYear = as.character(SchoolYear),
+              SchoolCode = as.character(SchoolCode)
+            ),
+          by = c("model", "SchoolYear", "SchoolCode")
         )
     }
   }
   
-  if (!is.null(stability_source)) {
-    plot_dat <- plot_dat %>%
-      mutate(
-        model = as.character(model),
-        SchoolYear = as.character(SchoolYear),
-        SchoolCode = as.character(SchoolCode)
-      ) %>%
-      left_join(
-        stability_source,
-        by = c("model", "SchoolYear", "SchoolCode")
-      ) %>%
-      mutate(
-        model = factor(model, levels = unique(plot_dat_wide$model)),
-        baseline_group = factor(baseline_group, levels = c(top_label, bottom_label)),
-        school_label = factor(school_label, levels = school_label_order)
-      )
-    
-    has_stability_data <- all(stability_cols %in% names(plot_dat))
-  }
+  has_stability_data <- !is.null(stability_source) &&
+    all(stability_plot_cols %in% names(stability_source)) &&
+    nrow(stability_source) > 0
   
   if (has_stability_data) {
-    stability_long <- plot_dat %>%
+    stability_long <- stability_source %>%
       select(
         SchoolCode,
         SchoolName,
-        school_label,
-        baseline_group,
         model,
-        .pred_cv_sd,
-        .performance_rank_cv_sd,
-        .performance_direction_consistency,
-        n_cv_repeats_used,
-        .performance_direction_mode
+        all_of(stability_plot_cols),
+        any_of(stability_optional_cols)
       ) %>%
       pivot_longer(
-        cols = c(
-          .pred_cv_sd,
-          .performance_rank_cv_sd,
-          .performance_direction_consistency
-        ),
+        cols = all_of(stability_plot_cols),
         names_to = "stability_metric",
         values_to = "stability_value"
       ) %>%
@@ -555,16 +595,17 @@ build_visual_data <- function(model_comp_plot,
         stability_metric = recode(
           stability_metric,
           .pred_cv_sd = "Benchmark-score SD across CV repeats",
-          .performance_rank_cv_sd = "Rank SD across CV repeats",
-          .performance_direction_consistency = "Benchmark-label consistency across CV repeats"
+          .performance_rank_cv_sd = "Rank SD across CV repeats"
         )
       )
     
     stability_summary <- stability_long %>%
       group_by(model, stability_metric) %>%
       summarise(
+        n_schools = n_distinct(SchoolCode),
         mean_value = mean(stability_value, na.rm = TRUE),
         median_value = median(stability_value, na.rm = TRUE),
+        p90_value = as.numeric(quantile(stability_value, 0.90, na.rm = TRUE)),
         max_value = max(stability_value, na.rm = TRUE),
         .groups = "drop"
       )
@@ -572,11 +613,10 @@ build_visual_data <- function(model_comp_plot,
     stability_long <- tibble()
     stability_summary <- tibble()
   }
-  
-  
   # Step 9: return all visual inputs
   list(
     plot_dat = plot_dat,
+    plot_dat_all = plot_dat_all,
     baseline_model = baseline_model,
     baseline_group_colors = baseline_group_colors,
     model_sensitivity_summary = model_sensitivity_summary,
@@ -586,7 +626,10 @@ build_visual_data <- function(model_comp_plot,
     metric_long = metric_long,
     rank_summary = rank_summary,
     top_n = top_n,
+    lower_n = baseline_info$lower_n,
+    upper_n = baseline_info$upper_n,
     tracked_school_note = tracked_school_note,
+    all_school_note = all_school_note,
     has_stability_data = has_stability_data,
     stability_long = stability_long,
     stability_summary = stability_summary
@@ -608,7 +651,7 @@ p_rank_heat <- function(viz) {
     ) +
     facet_grid(baseline_group ~ ., scales = "free_y", space = "free_y") +
     labs(
-      title = "How tracked baseline schools shift across benchmark definitions",
+      title = "How selected baseline rank-band schools shift across benchmark definitions",
       subtitle = paste(
         "↑ better rank, ↓ worse rank, → unchanged. Smaller rank numbers are better.",
         viz$tracked_school_note
@@ -656,7 +699,7 @@ p_dumbbell_all <- function(viz) {
     scale_x_reverse(breaks = viz$x_breaks) +
     facet_grid(baseline_group ~ comparison_model, scales = "free_y", space = "free_y") +
     labs(
-      title = "How far tracked baseline schools move under alternative models",
+      title = "How far selected baseline rank-band schools move under alternative models",
       subtitle = paste(
         "Open circle = baseline rank. Filled circle = comparison-model rank. Smaller rank numbers are better.",
         viz$tracked_school_note
@@ -689,8 +732,11 @@ p_rank_shift_summary <- function(viz) {
     ) +
     scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
     labs(
-      title = "Average absolute rank change among tracked baseline schools",
-      subtitle = paste(viz$headline_takeaway, viz$tracked_school_note),
+      title = "Average absolute rank change across all schools",
+      subtitle = paste(
+        viz$headline_takeaway,
+        "Calculated across the full selected-year sample, not just the tracked top and bottom baseline schools."
+      ),
       x = NULL,
       y = "Average |rank change|",
       caption = paste0("Baseline = ", baseline_caption(viz))
@@ -716,7 +762,7 @@ p_metric_facets <- function(viz) {
     labs(
       title = "How tracked baseline-school results change across models",
       subtitle = paste(
-        "The same tracked baseline schools are followed across the baseline and alternative models.",
+        "The same selected baseline rank-band schools are followed across the baseline and alternative models.",
         viz$tracked_school_note
       ),
       x = NULL,
@@ -737,7 +783,12 @@ p_stability_summary <- function(viz) {
     )
   }
   
-  ggplot(viz$stability_summary, aes(x = model, y = mean_value)) +
+  plot_dat <- viz$stability_summary %>%
+    mutate(
+      model = factor(model, levels = unique(as.character(viz$plot_dat_all$model)))
+    )
+  
+  ggplot(plot_dat, aes(x = model, y = mean_value)) +
     geom_col(fill = dde_blue, width = 0.7) +
     geom_text(
       aes(label = number(mean_value, accuracy = 0.01)),
@@ -749,10 +800,10 @@ p_stability_summary <- function(viz) {
     facet_wrap(~ stability_metric, scales = "free_y", ncol = 1) +
     scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
     labs(
-      title = "Split-stability diagnostics for the tracked baseline schools",
+      title = "Split-stability diagnostics across all schools",
       subtitle = paste(
-        "These summaries describe fold-assignment stability across repeated grouped CV, not movement caused by changing the benchmark definition.",
-        viz$tracked_school_note
+        "These summaries describe fold-assignment stability across repeated grouped CV for the full selected-year sample.",
+        "They do not describe movement caused by changing the benchmark definition."
       ),
       x = NULL,
       y = NULL,
@@ -769,11 +820,8 @@ tbl_rank_summary <- function(viz) {
       title = md("**Tracked-school sensitivity to benchmark definition**"),
       subtitle = md(
         paste0(
-          "Top ",
-          viz$top_n,
-          " and bottom ",
-          viz$top_n,
-          " schools from the baseline model, tracked across the comparison models."
+          viz$tracked_school_note,
+          " Tracked across the comparison models."
         )
       )
     ) %>%
@@ -851,7 +899,7 @@ tbl_rank_summary <- function(viz) {
         paste0(
           "**Note.** Baseline = `",
           baseline_caption(viz),
-          "`. Smaller rank numbers are better. `n` is the number of tested students contributing to the observed school mean. The summary covers only the tracked top and bottom baseline schools."
+          "`. Smaller rank numbers are better. `n` is the number of tested students contributing to the observed school mean. The summary covers only the selected paired baseline rank-band schools."
         )
       )
     )

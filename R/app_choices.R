@@ -1,18 +1,18 @@
 # =========================================================
-# R/helpers.R
-# Small helper functions used by the app
+# R/app_choices.R
+# UI choice helpers for assessment, grade, year, and thresholds
+# =========================================================
+# Purpose:
+#   Build user-facing choices for app controls from the OPTIONS
+#   lookup table created by R/data.R.
+#
+# Main helpers:
+#   - get_scope_2_choices()
+#   - get_year_choices()
+#   - get_range_n()
+#   - get_model_keys()
 # =========================================================
 
-grade_labels <- c(
-  "03"    = "3rd",
-  "04"    = "4th",
-  "05"    = "5th",
-  "06"    = "6th",
-  "07"    = "7th",
-  "08"    = "8th",
-  "09_12" = "9th–12th",
-  "11"    = "11th"
-)
 
 get_scope_2_choices <- function(scope_1) {
   vals <- OPTIONS %>%
@@ -23,6 +23,7 @@ get_scope_2_choices <- function(scope_1) {
   
   setNames(vals, grade_labels[vals])
 }
+
 
 get_year_choices <- function(scope_1, scope_2) {
   vals <- OPTIONS %>%
@@ -39,15 +40,19 @@ get_year_choices <- function(scope_1, scope_2) {
   setNames(vals, labels)
 }
 
+
 get_range_n <- function(scope_1, scope_2) {
   OPTIONS %>%
     filter(
       AssessmentLabel == scope_1,
       ModelGrade == scope_2
     ) %>%
-    summarise(n_min = min(n_min, na.rm = TRUE),
-              n_max = max(n_max, na.rm = TRUE))
+    summarise(
+      n_min = min(n_min, na.rm = TRUE),
+      n_max = max(n_max, na.rm = TRUE)
+    )
 }
+
 
 get_model_keys <- function(scope_1, scope_2) {
   OPTIONS %>%
@@ -57,16 +62,4 @@ get_model_keys <- function(scope_1, scope_2) {
     ) %>%
     distinct(model_key) %>%
     pull(model_key)
-}
-
-build_toggle_vector <- function(selected_groups) {
-  toggles <- DEFAULT_GROUP_TOGGLES
-  toggles[] <- FALSE
-
-  if (!is.null(selected_groups) && length(selected_groups) > 0) {
-    valid_groups <- intersect(selected_groups, names(toggles))
-    toggles[valid_groups] <- TRUE
-  }
-
-  toggles
 }

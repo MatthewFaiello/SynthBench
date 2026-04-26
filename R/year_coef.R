@@ -2,71 +2,9 @@
 # year_coef.R
 # Year-specific benchmark feature weight table + gt table
 # =========================================================
-
-# --------------------------- visual style --------------------------- #
-PLOT_SETTINGS <- list(
-  base_size = 12
-)
-
-dde_blue <- "#194a78"
-dde_blue_dark <- "#123758"
-dde_orange <- "#d98b00"
-dde_orange_soft <- "#fff7ea"
-dde_bg <- "#f5f7fb"
-dde_surface <- "#ffffff"
-dde_surface_soft <- "#fbfcfe"
-dde_border <- "#d8e2ec"
-dde_border_strong <- "#c7d5e2"
-dde_text <- "#1f2937"
-dde_muted <- "#5b6875"
-
-# --------------------------- label helper --------------------------- #
-pretty_feature_label <- function(x) {
-  label_map <- c(
-    "County_Name.New_Castle" = "New Castle County",
-    "County_Name.Sussex" = "Sussex County",
-    "na" = "Percent missing scores",
-    "units" = "Student units",
-    
-    "ELL.ELL" = "ELL",
-    "ELL.ELM" = "ELM",
-    "ELL.ELX" = "ELX",
-    
-    "FosterCare.FOSTR" = "Foster care",
-    "Gender.M" = "Male",
-    "Geography.W" = "Wilmington",
-    "Homeless.HOMLES" = "Homeless",
-    "Immersion.IMM" = "Immersion",
-    "LowIncome.LOWINC" = "Low income",
-    "Migrant.MIGRNT" = "Migrant",
-    "MilitaryDep.MILTRY" = "Military connected",
-    
-    "RaceReportTitle.African_American" = "African American",
-    "RaceReportTitle.American_Indian" = "American Indian",
-    "RaceReportTitle.Asian" = "Asian",
-    "RaceReportTitle.Hawaiian" = "Hawaiian",
-    "RaceReportTitle.Hispanic_Latino" = "Hispanic / Latino",
-    "RaceReportTitle.Multi_Racial" = "Multi-racial",
-    
-    "SPEDCode.100" = "SPED 100",
-    "SPEDCode.200" = "SPED 200",
-    "SPEDCode.300" = "SPED 300",
-    "SPEDCode.400" = "SPED 400",
-    "SPEDCode.500" = "SPED 500",
-    "SPEDCode.601" = "SPED 601",
-    "SPEDCode.602" = "SPED 602",
-    "SPEDCode.700" = "SPED 700",
-    "SPEDCode.800" = "SPED 800",
-    "SPEDCode.900" = "SPED 900",
-    "SPEDCode.1000" = "SPED 1000",
-    "SPEDCode.1100" = "SPED 1100",
-    "SPEDCode.1200" = "SPED 1200",
-    "SPEDCode.1300" = "SPED 1300",
-    "SPEDCode.1400" = "SPED 1400"
-  )
-  
-  dplyr::recode(x, !!!label_map, .default = x)
-}
+# Depends on:
+#   - R/visual_theme.R for dde_* style constants
+# =========================================================
 
 # --------------------------- data prep --------------------------- #
 make_year_coef_display_table <- function(run,

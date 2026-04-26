@@ -12,11 +12,11 @@ The goal is transparent, benchmark-adjusted comparison. The app is **not** desig
 
 Users can:
 
-- choose an **assessment** and **grade**
-- set a **minimum tested-student threshold**
-- choose the **year shown in the comparison views**
-- adjust the **neutral-band width**
-- define one **baseline** benchmark model and up to three **alternative** benchmark models
+- choose an assessment and grade
+- set a minimum tested-student threshold
+- choose the year shown in the comparison views
+- adjust the neutral-band width
+- define one baseline benchmark model and up to three alternative benchmark models
 
 The app then:
 
@@ -40,8 +40,6 @@ The app should not be used to claim that selected benchmark features caused scho
 
 ## Interface language
 
-The app uses plain-language labels where possible:
-
 - **Benchmark score** = the model-based score for a school-year under the chosen comparison frame.
 - **Benchmark gap** = observed score minus benchmark score.
 - **Scaled benchmark gap** = benchmark gap divided by the model-level weighted residual standard deviation. This is used for comparison and ranking, not as a formal z-score or significance test.
@@ -49,21 +47,20 @@ The app uses plain-language labels where possible:
 - **Within-year rank** = the school's benchmark-adjusted position relative to other schools in the same year.
 - **Benchmark feature weights** = year-specific standardized coefficient-weight diagnostics. These are model diagnostics, not causal effects or stand-alone importance measures.
 
-Some internal code objects still use legacy names such as `.pred_cv`, `.resid_cv`, `.performance_z_cv`, and `.performance_direction`. Those names are implementation details; the user-facing app uses the terminology above.
+Internal code objects still use names such as `.pred_cv`, `.resid_cv`, `.performance_z_cv`, and `.performance_direction`. Those names are implementation details; the user-facing app uses the terminology above.
 
 ## Main result views
 
-The app currently includes these result views:
-
-- **Benchmarking overview**: summarizes tracked baseline-school sensitivity across benchmark definitions.
+- **Benchmarking overview**: summarizes sensitivity across benchmark definitions for the selected paired baseline rank bands.
 - **Benchmark feature weights**: shows year-specific standardized coefficient-weight diagnostics for the selected year.
-- **Rank comparison**: compares each tracked baseline school's baseline rank with its rank under alternative benchmark definitions.
-- **Rank movement**: shows rank shifts for tracked baseline schools across benchmark definitions.
-- **Average rank movement**: summarizes average rank movement among tracked baseline schools.
-- **Scores and benchmark gaps**: compares benchmark scores, benchmark gaps, scaled benchmark gaps, and within-year ranks across benchmark definitions.
+- **Split stability**: summarizes repeated grouped-CV fold-assignment stability across all schools in the selected year.
+- **Rank comparison**: compares each school in the selected paired baseline rank bands with its rank under alternative benchmark definitions.
+- **Rank movement**: shows rank shifts for schools in the selected paired baseline rank bands across benchmark definitions.
+- **Average rank movement**: summarizes average absolute rank movement across all schools in the selected year.
+- **Scores and benchmark gaps**: compares benchmark scores, benchmark gaps, scaled benchmark gaps, and within-year ranks across benchmark definitions for the selected paired baseline rank bands.
 - **Full results**: lists all schools in the selected year for the fitted benchmark models and allows download to Excel.
 
-Most plots track the top and bottom baseline schools in the selected year. The full results table includes all schools in the selected year.
+Detailed school-level plots track the selected paired baseline rank bands in the selected year, such as 0-10% vs 90-100% or 40-50% vs 50-60%. Average rank movement, split stability, and the full results table use all schools in the selected year.
 
 ## Benchmark groups
 
@@ -102,6 +99,8 @@ For each selected assessment and grade, the workflow:
 8. uses the mean out-of-fold prediction as the official historical benchmark score for each school-year row
 9. computes benchmark gap, scaled benchmark gap, benchmark label, and within-year rank
 
+The out-of-fold benchmark scores are designed for historical comparison and sensitivity review. They are not an external validation study: the ridge penalty is selected within the repeated cross-validation workflow, and the full eligible historical assessment-grade dataset defines the modeling context. Treat model diagnostics as practical stability checks rather than proof of future predictive accuracy.
+
 The selected comparison year controls the views and tables. It does **not** redefine the full historical modeling sample.
 
 ## Neutral band and benchmark labels
@@ -125,62 +124,110 @@ SynthBench/
 ├── server.R
 ├── README.md
 ├── R/
-│   ├── config.R
 │   ├── data.R
-│   ├── helpers.R
+│   ├── config.R
+│   ├── labels.R
+│   ├── app_choices.R
+│   ├── model_groups.R
+│   ├── result_table.R
+│   ├── settings_summary.R
+│   ├── metrics.R
+│   ├── cv_helpers.R
+│   ├── model_terms.R
+│   ├── comparison_bands.R
+│   ├── model_design.R
+│   ├── coefficients.R
 │   ├── workflow.R
+│   ├── visual_theme.R
 │   ├── year_coef.R
-│   └── visual_helper.R
+│   ├── visual_helper.R
+│   └── run_helpers.R
 ├── www/
 │   └── style.css
 ├── input_data/
-│   ├── APP_DATA.rds
-│   └── LEA_META.rds
+│   ├── APP_DATA_flat.csv
+│   └── LEA_META.csv
 ├── prep/
 │   ├── organize.R
 │   └── data/
+├── dev/
+│   └── smoke_test.R
+├── docs/
+│   ├── DATA_CONTRACT.md
+│   └── WORKFLOW_GUIDE.md
 └── rsconnect/
 ```
 
-## Key files
+## Source file map
 
-- **global.R** loads packages and sources the app modules.
+The app sources shared setup from `global.R`. The source files are organized by responsibility so `server.R` stays focused on Shiny reactivity, rendering, and downloads.
+
+### Core setup
+
+- `R/data.R` loads and validates the flat app data.
+- `R/config.R` defines app settings, model defaults, feature groups, and user-facing group choices.
+- `R/labels.R` defines shared grade, group, and feature labels.
+- `R/app_choices.R` builds UI choices for assessment, grade, year, and tested-student thresholds.
+- `R/model_groups.R` discovers available benchmark feature groups and builds model-toggle vectors.
+
+### Modeling workflow
+
+- `R/metrics.R` contains weighted metric and residual-summary helpers.
+- `R/cv_helpers.R` contains grouped cross-validation helpers.
+- `R/model_terms.R` parses model-matrix terms into feature groups and coefficient components.
+- `R/comparison_bands.R` builds selected baseline rank-band lookup tables.
+- `R/model_design.R` builds formula labels, model terms, and design matrices.
+- `R/coefficients.R` builds coefficient diagnostic summaries.
+- `R/workflow.R` orchestrates model preparation, repeated grouped-CV fitting, output combining, selected-year reporting, and workflow-level audit objects.
+
+### App output helpers
+
+- `R/result_table.R` builds the full-results display table and Excel workbook.
+- `R/settings_summary.R` builds the run-settings summary shown in the UI.
+- `R/run_helpers.R` connects workflow outputs to app-ready visualization objects.
+
+### Visuals
+
+- `R/visual_theme.R` defines shared plot style constants and themes.
+- `R/visual_helper.R` builds benchmark comparison visuals and summary tables.
+- `R/year_coef.R` builds the year-specific benchmark feature weight table.
+
+## Key app files
+
+- **global.R** loads packages and sources the app modules in dependency order.
 - **ui.R** defines the app interface and user-facing copy.
-- **server.R** manages reactivity, model runs, outputs, and downloads.
-- **R/config.R** stores app settings and default model definitions.
-- **R/data.R** loads the app datasets and builds scope lookup tables.
-- **R/helpers.R** contains helper functions for UI choices and benchmark-group toggles.
-- **R/workflow.R** runs the main benchmark modeling workflow.
-- **R/year_coef.R** builds the benchmark feature weight table.
-- **R/visual_helper.R** builds comparison plots and summary tables.
+- **server.R** manages Shiny reactivity, model-run events, output rendering, and downloads.
 - **www/style.css** controls the app styling.
 - **prep/organize.R** builds the `input_data` files from prepared source data.
+- **dev/smoke_test.R** verifies data loading, helper-source availability, workflow execution, and display-table preparation.
 
 ## Data requirements
 
 The app expects these files in `input_data/`:
 
-- `APP_DATA.rds`
-- `LEA_META.rds`
+- `APP_DATA_flat.csv`
+- `LEA_META.csv`
 
-`APP_DATA` is the main modeling source. It should be a named list of assessment-and-grade datasets. Each element should contain the school-year rows and prepared model inputs used by the workflow.
+`APP_DATA_flat.csv` is the main modeling source. It contains one row per school-year-grade-assessment modeling unit.
 
-`LEA_META` provides district and school metadata used in final outputs.
+`LEA_META.csv` provides district and school metadata used in final outputs.
 
 The data-prep pipeline is expected to provide a stable modeling contract, including:
 
 - one row per school-year-grade-assessment modeling unit
-- required identifiers such as `SchoolYear`, `SchoolCode`, `ModelGrade`, and assessment label fields
+- required identifiers such as `model_key`, `SchoolYear`, `SchoolCode`, `ModelGrade`, and `AssessmentLabel`
 - the outcome column specified by `SETTINGS$outcome`
 - the tested-student count column `n`
 - the weight column specified by `SETTINGS$weight_var`
 - school-year indicator columns
 - benchmark feature columns used by the configured benchmark groups
 
+See `docs/DATA_CONTRACT.md` for details.
+
 ## Run locally
 
 1. Clone or download the project.
-2. Make sure `input_data/APP_DATA.rds` and `input_data/LEA_META.rds` are present.
+2. Make sure `input_data/APP_DATA_flat.csv` and `input_data/LEA_META.csv` are present.
 3. Install the required packages.
 4. Open the project in RStudio or another R environment.
 5. Run the app from the project root.
@@ -200,6 +247,22 @@ install.packages(c(
 shiny::runApp()
 ```
 
+## Smoke test
+
+Run the smoke test from the project root after refactors or data updates:
+
+```r
+source("dev/smoke_test.R")
+```
+
+The smoke test should confirm:
+
+- data files load and validate
+- refactored helper files are sourced correctly
+- core workflow helpers run in sequence
+- `run_benchmark_workflow()` completes
+- app-ready full-results table helpers are available
+
 ## Current defaults
 
 Current core defaults are stored in `R/config.R` and include:
@@ -211,15 +274,32 @@ Current core defaults are stored in `R/config.R` and include:
 - ridge lambda choice: `lambda.1se`
 - grouped CV folds: `10`, with a smaller-fold fallback for smaller samples
 - repeated CV runs: `5`
-- neutral-band multiplier: `1/3`
-- comparison top/bottom count: `10`
+- neutral-band multiplier: `0.5`
+- tracked baseline rank bands: default `0-10% vs 90-100%` using 10 equal baseline-rank bands
 
 Default model definitions are:
 
-- **Baseline**: low income
+- **Baseline**: low income + ELL + SPED
 - **Alt 1**: low income + ELL
 - **Alt 2**: low income + SPED
-- **Alt 3**: low income + ELL + SPED
+- **Alt 3**: low income
+
+## Simplified workflow
+
+The main workflow is intentionally split into focused helpers while `R/workflow.R` remains the orchestrator:
+
+```text
+run_benchmark_workflow()
+  ├─ prepare_model_data()
+  ├─ fit_benchmark_model()
+  │    ├─ make_benchmark_design()
+  │    ├─ fit_cv_repeat()
+  │    └─ add_benchmark_performance()
+  ├─ combine_benchmark_models()
+  └─ build_selected_year_outputs()
+```
+
+See `docs/WORKFLOW_GUIDE.md` for debugging instructions.
 
 ## Development notes
 
@@ -232,50 +312,6 @@ A few implementation choices are intentional:
 - repeated fold assignments reduce dependence on any one random split
 - final benchmark scores are aggregated from out-of-fold predictions across repeats
 - scaled benchmark gaps are for comparison and ranking, not inference
+- `workflow.R` remains the high-level orchestrator, while reusable helpers live in focused source files
 
 These choices are meant to support transparent, stable historical benchmarking rather than one final adjusted truth.
-
-## Pre-deployment checks
-
-Before deploying, run a local smoke test:
-
-```r
-source("global.R")
-
-result <- run_benchmark_workflow(
-  model_key = names(APP_DATA)[1],
-  selection_year = max(APP_DATA[[1]]$SchoolYear, na.rm = TRUE),
-  min_students_tested = 10
-)
-
-names(result)
-head(result$model_comp_table)
-```
-
-Also confirm that:
-
-- the app starts from the project root
-- `global.R` sources `R/workflow.R`, not an old workflow filename
-- `www/style.css` is included in the deployment bundle
-- `input_data/APP_DATA.rds` and `input_data/LEA_META.rds` are included in the deployment bundle
-- the full results table downloads successfully as an `.xlsx` file
-- repeated runs with the same inputs produce stable results
-- unusual input combinations fail with clear messages rather than silent output changes
-
-## Interpretation limits
-
-Model-Based Benchmarking is a descriptive comparison tool. It helps users interpret historical school-year average scale scores in context, but it does not establish causality.
-
-Important limits:
-
-- A benchmark gap is not a causal effect.
-- A scaled benchmark gap is not a formal z-score or significance test.
-- Benchmark labels are practical comparison labels, not inferential decisions.
-- Benchmark feature weights are model diagnostics, not evidence that a feature caused performance.
-- The selected comparison year controls reporting, not the full historical modeling sample.
-- Tracked-school visuals follow baseline-selected top and bottom schools; they do not always summarize all schools.
-- The app should not be used as a stand-alone accountability system.
-
-## License and distribution
-
-Add project-specific license, ownership, and distribution notes here before public or external release.

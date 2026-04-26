@@ -662,6 +662,23 @@ input[type="number"] {
   color: var(--sb-blue-dark);
 }
 
+
+/* =========================================================
+   Results view controls
+   ========================================================= */
+
+.sb-view-controls {
+  padding: 16px 20px;
+}
+
+.sb-view-controls .sb-control-block {
+  max-width: 460px;
+}
+
+.sb-view-controls .form-group {
+  margin-bottom: 0;
+}
+
 /* =========================================================
    Tables and downloads
    ========================================================= */
