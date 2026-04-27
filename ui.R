@@ -72,108 +72,95 @@ sb_result_tab <- function(title, output_ui, caption) {
 # ---------------- plain-language copy used across the interface ---------------- #
 
 header_subtitle <- paste(
-  "Build a historical benchmark for each school-year,",
-  "then see how results change when you change the comparison frame."
+  "Review school assessment performance against model-based benchmarks,",
+  "then check whether conclusions stay stable as more school-year context is included."
 )
 
 header_note <- paste(
-  "This tool supports transparent benchmark-adjusted comparison.",
-  "It checks whether conclusions stay similar across reasonable comparison frames.",
-  "It does not explain what caused results, estimate policy effects, forecast future scores, or replace accountability decisions."
+  "Use this tool for internal review, policy discussion, and benchmarking conversations.",
+  "It helps compare school results with contextualized benchmarks; it does not identify causes, estimate policy effects, forecast future scores, or make accountability decisions."
 )
 
 sidebar_intro <- paste(
-  "Pick the historical dataset and comparison settings here.",
-  "The app fits benchmark models on the full selected assessment-and-grade dataset that meets the tested-student threshold,",
-  "builds benchmark scores from held-out predictions,",
-  "and then shows comparison views for the year you choose."
+  "Choose the assessment results to review, the year to display,",
+  "and how the benchmark should label school performance."
 )
 
 step1_note <- paste(
-  "Assessment and grade determine which historical dataset is used for modeling.",
-  "The minimum tested-student threshold is applied before the models are fit."
+  "Select the assessment-grade results and the tested-student count."
 )
 
 min_students_note <- paste(
-  "School-years below this threshold are excluded before modeling.",
-  "Higher thresholds can make the benchmark more stable, but they also reduce coverage."
+  "School-years below this count are excluded.",
+  "Higher thresholds may make results more stable, but may remove more schools."
 )
 
 step2_note <- paste(
-  "These settings control which year is highlighted",
-  "and how large a benchmark gap must be before it is labeled above or below benchmark.",
-  "They are captured when you run the benchmark models."
+  "Choose the year to display and the band used to label results as above, near, or below benchmark."
 )
 
 year_callout <- paste(
-  "The year you pick here only controls which year is shown in the plots and tables.",
-  "It does not change the full historical sample used to train the benchmark models."
+  "The display year controls what appears in the charts and tables.",
+  "The benchmark models still use all eligible historical years for the selected assessment and grade."
 )
 
 year_note <- paste(
-  "Use this to focus the results after the benchmark models are trained",
-  "on the full selected historical dataset."
+  "Select the school year to show in the output views."
 )
 
 comparison_band_note <- paste(
-  "Controls only the detailed tracked-school plots.",
-  "The app tracks the selected baseline rank band and its mirror band on the other side of the baseline ranking.",
-  "Aggregate diagnostics such as average rank movement and split stability still use all schools in the selected year."
+  "Changes only the tracked-school plots.",
+  "Summary views and the full table still use all schools in the selected year."
 )
 
 neutral_band_note <- paste(
-  "The neutral band is a practical reading aid, not a significance test.",
-  "A wider band labels more benchmark gaps as near benchmark and fewer as above or below benchmark.",
-  "Its width is based on the weighted residual standard deviation across the full eligible historical modeling sample, not just the displayed year."
+  "A wider band labels more schools as near benchmark.",
+  "The band is based on the model's typical benchmark gap; it is not a significance test."
 )
 
 model_subtitle <- paste(
-  "Each model uses school-year average scale score as the outcome and a different set of comparison features.",
-  "The app builds benchmarks from the selected assessment-and-grade history,",
-  "then compares each observed score with its benchmark score."
+  "Start with a simple benchmark, then compare what changes as more school-year context is added.",
+  "Each model compares observed school scores with a model-based benchmark."
 )
 
 model_method_callout <- paste(
-  "The boxes you check here define the model features and the comparison frame.",
-  "Each model uses school year, the benchmark features you choose, and year-specific adjustments.",
-  "Those features define the comparison being made; they are not treated as the true causes of performance.",
-  "The app uses repeated grouped cross-validation, so each school's benchmark score is based on held-out school histories rather than the same rows used to fit that run. These held-out benchmark scores support historical comparison, but they should not be read as external validation, causal evidence, or future-year forecasts."
+  "Checked groups define what context the benchmark accounts for.",
+  "These choices support historical benchmarking and sensitivity review; they do not explain what caused school performance."
 )
 
 model_tabs_note <- paste(
-  "Baseline is the main reference model.",
-  "Alt 1 to Alt 3 show whether conclusions move when the benchmark definition changes."
+  "The Baseline is the anchor for comparison.",
+  "The default setup starts with low income, then tests what changes when ELL, SPED, or both are added."
 )
 
 model_tabs_detail <- paste(
-  "Each checkbox turns on a group of related model inputs.",
-  "Most groups are school-year composition measures from the unit-count data;",
-  "percent missing scores comes from the assessment records.",
-  "These features define the comparison frame and should not be read as causal explanations."
+  "This is a simple-first model comparison.",
+  "Use the alternatives to ask whether school conclusions change when the benchmark accounts for additional context."
 )
 
 results_subtitle <- paste(
-  "Review how results change across benchmark definitions in the selected year.",
-  "Detailed school-level plots track the selected paired baseline rank bands.",
-  "Average rank movement, split stability, and the full results table use all schools in the selected year."
+  "Compare benchmark gaps, labels, ranks, and rank movement for the selected year."
 )
 
 results_guide <- paste(
-  "First, identify the comparison frame from the selected scope and benchmark groups.",
-  "Second, compare the observed score, benchmark score, and benchmark gap.",
-  "Third, use the within-year rank, scaled benchmark gap, and benchmark label to judge whether the interpretation changes across benchmark definitions."
+  "Start with the benchmark gap: observed score minus benchmark score.",
+  "Then check whether schools stay above, near, or below benchmark as more context is added."
 )
 
 results_view_control_note <- paste(
-  "This does not rerun the benchmark models.",
-  "It only changes which baseline rank bands are tracked in the detailed school-level comparison views."
+  "Choose the result view and tracked Baseline rank bands.",
+  "These controls update the displayed results but do not rerun the benchmark models."
+)
+
+result_view_note <- paste(
+  "Choose the plot or table shown below."
 )
 
 results_placeholder_title <- "Ready to run the benchmark models"
 
 results_placeholder_body <- paste(
-  "Choose the historical dataset, comparison rules, and model feature groups, then click 'Run benchmark models'.",
-  "The comparison plots and tables will appear here after the models finish running."
+  "Choose the assessment, grade, display year, tested-student threshold, and benchmark definitions.",
+  "Then run the benchmark models to populate the views."
 )
 
 
@@ -183,7 +170,56 @@ ui <- fluidPage(
   tags$head(
     tags$title("Model-Based Benchmarking"),
     tags$meta(name = "viewport", content = "width=device-width, initial-scale=1"),
-    tags$link(rel = "stylesheet", type = "text/css", href = "style.css")
+    tags$link(rel = "stylesheet", type = "text/css", href = "style.css"),
+    tags$script(HTML("
+      (function() {
+        function moveVisualTabNav() {
+          var target = document.getElementById('visual_tab_nav_home');
+          var nav = document.querySelector('#visual_tabs.nav-tabs') ||
+            document.querySelector('.sb-results-content > .tabbable > ul.nav-tabs');
+
+          if (!target || !nav || nav.parentElement === target) {
+            return;
+          }
+
+          target.appendChild(nav);
+        }
+
+        function polishSettingsSummary() {
+          var title = document.querySelector('.sb-settings-summary .sb-settings-summary-title');
+
+          if (!title) {
+            return;
+          }
+
+          title.textContent = 'Settings used for these results';
+
+          var summary = title.closest('.sb-settings-summary');
+
+          if (summary && !summary.querySelector('.sb-settings-summary-note')) {
+            var note = document.createElement('p');
+            note.className = 'sb-settings-summary-note';
+            note.textContent = 'Captured when the benchmark models were run. Change setup inputs and rerun to update these settings.';
+            title.insertAdjacentElement('afterend', note);
+          }
+        }
+
+        function polishUi() {
+          moveVisualTabNav();
+          polishSettingsSummary();
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+          polishUi();
+          window.setTimeout(polishUi, 0);
+          window.setTimeout(polishUi, 250);
+        });
+
+        document.addEventListener('shiny:connected', polishUi);
+        document.addEventListener('shiny:bound', polishUi);
+        document.addEventListener('shiny:value', polishUi);
+      })();
+    "))
   ),
   
   div(
@@ -195,7 +231,7 @@ ui <- fluidPage(
       # ---------------- header ---------------- #
       div(
         class = "sb-header sb-card",
-        div(class = "sb-eyebrow", "Historical assessment benchmarking tool"),
+        div(class = "sb-eyebrow", "Historical assessment benchmarking"),
         h1(class = "sb-title", "Model-Based Benchmarking"),
         p(class = "sb-subtitle", header_subtitle),
         p(class = "sb-header-note", header_note)
@@ -213,13 +249,13 @@ ui <- fluidPage(
             
             div(
               class = "sb-card sb-sidebar-intro",
-              h2(class = "sb-sidebar-intro-title", "Set up the comparison"),
+              h2(class = "sb-sidebar-intro-title", "Set up the benchmark review"),
               p(class = "sb-sidebar-intro-copy", sidebar_intro)
             ),
             
             sb_sidebar_section(
               step = 1,
-              title = "Choose the historical dataset",
+              title = "Choose assessment and grade",
               note = step1_note,
               
               div(
@@ -264,11 +300,11 @@ ui <- fluidPage(
             
             sb_sidebar_section(
               step = 2,
-              title = "Set benchmark reading rules",
+              title = "Set display and label rules",
               note = step2_note,
               
               sb_callout(
-                title = "All eligible years stay in the modeling data.",
+                title = "Display year does not refit the model.",
                 body = year_callout,
                 tone = "guide"
               ),
@@ -277,19 +313,18 @@ ui <- fluidPage(
                 class = "sb-control-block",
                 selectInput(
                   inputId = "selection_year",
-                  label = "Year shown in the comparison views",
+                  label = "Display year",
                   choices = default_year_choices,
                   selected = default_year
                 ),
                 p(class = "sb-control-note", year_note)
               ),
               
-              
               div(
                 class = "sb-control-block",
                 sliderInput(
                   inputId = "neutral_band_multiplier",
-                  label = "Neutral-band width, as a fraction of weighted residual SD",
+                  label = "Near-benchmark band width",
                   min = 0,
                   max = 1,
                   value = default_neutral_band,
@@ -318,7 +353,7 @@ ui <- fluidPage(
                 div(
                   class = "sb-model-card-copy",
                   div(class = "sb-step", "Step 3"),
-                  h2(class = "sb-main-title", "Define benchmark models"),
+                  h2(class = "sb-main-title", "Choose benchmark definitions"),
                   p(class = "sb-main-subtitle", model_subtitle)
                 ),
                 
@@ -336,7 +371,7 @@ ui <- fluidPage(
                 class = "sb-model-card-body",
                 
                 sb_callout(
-                  title = "How these models work",
+                  title = "How to interpret model choices",
                   body = model_method_callout,
                   tone = "guide"
                 ),
@@ -438,7 +473,7 @@ ui <- fluidPage(
                     ),
                     p(
                       class = "sb-result-caption",
-                      "Nothing has been run yet. Results will appear here after the benchmark models are fit."
+                      "Results will appear here after the benchmark models are fit."
                     )
                   )
                 ),
@@ -446,28 +481,48 @@ ui <- fluidPage(
                 conditionalPanel(
                   condition = "input.run_models > 0",
                   
-                  uiOutput("current_settings_summary"),
-
+                  div(
+                    id = "settings_summary_slot",
+                    uiOutput("current_settings_summary")
+                  ),
+                  
                   div(
                     class = "sb-card sb-view-controls",
                     div(class = "sb-step", "View control"),
-                    h2(class = "sb-section-title", "Adjust displayed comparison"),
+                    h2(class = "sb-section-title", "Adjust displayed results"),
                     p(class = "sb-section-note", results_view_control_note),
+                    
                     div(
-                      class = "sb-control-block",
-                      selectInput(
-                        inputId = "comparison_band_index",
-                        label = "Tracked baseline rank bands",
-                        choices = comparison_band_choices,
-                        selected = default_comparison_band_index
+                      class = "sb-view-control-grid",
+                      
+                      div(
+                        class = "sb-control-block sb-result-view-control",
+                        h3(class = "sb-control-heading", "Result view"),
+                        p(class = "sb-control-note", result_view_note),
+                        div(
+                          id = "visual_tab_nav_home",
+                          class = "sb-result-view-tabs"
+                        )
                       ),
-                      p(class = "sb-control-note", comparison_band_note)
+                      
+                      div(
+                        class = "sb-control-block sb-rank-band-control",
+                        h3(class = "sb-control-heading", "Tracked Baseline rank bands"),
+                        selectInput(
+                          inputId = "comparison_band_index",
+                          label = NULL,
+                          choices = comparison_band_choices,
+                          selected = default_comparison_band_index,
+                          width = "100%"
+                        ),
+                        p(class = "sb-control-note", comparison_band_note)
+                      )
                     )
                   ),
-
+                  
                   div(
-                    class = "sb-results-tabs",
-
+                    class = "sb-results-content",
+                    
                     tabsetPanel(
                       id = "visual_tabs",
                       
@@ -475,8 +530,8 @@ ui <- fluidPage(
                         title = "Benchmarking overview",
                         output_ui = gt_output("rank_summary_tbl"),
                         caption = paste(
-                          "Summarizes how the selected baseline rank-band schools change across benchmark definitions",
-                          "in the selected year."
+                          "Look for schools whose benchmark label, rank, or gap changes across models.",
+                          "Large changes mean the conclusion depends more on the benchmark definition."
                         )
                       ),
                       
@@ -484,19 +539,17 @@ ui <- fluidPage(
                         title = "Benchmark feature weights",
                         output_ui = gt_output("year_coef_tbl"),
                         caption = paste(
-                          "Shows year-specific standardized coefficient weights for the selected year.",
-                          "Use this as a model diagnostic, not as causal evidence.",
-                          "Group rows summarize relative coefficient weight across benchmark groups, and feature rows show the individual feature coefficients that contribute to those group summaries."
+                          "Look for which selected context groups have the largest role in the selected-year benchmark.",
+                          "Use this as a model diagnostic, not as evidence of what caused school performance."
                         )
                       ),
                       
                       sb_result_tab(
-                        "Split stability",
-                        plotOutput("stability_summary", height = "520px"),
-                        paste(
-                          "Shows how much results vary across repeated grouped-CV fold assignments",
-                          "for all schools in the selected year.",
-                          "This helps separate fold-assignment stability from benchmark-definition sensitivity."
+                        title = "Stability check",
+                        output_ui = plotOutput("stability_summary", height = "520px"),
+                        caption = paste(
+                          "Look for whether school results stay fairly stable when the benchmark is tested across different groups of schools.",
+                          "More variation means individual school results should be discussed with more caution."
                         )
                       ),
                       
@@ -504,8 +557,8 @@ ui <- fluidPage(
                         title = "Rank comparison",
                         output_ui = plotOutput("dumbbell_all", height = "90vh"),
                         caption = paste(
-                          "Compares each selected rank-band school's baseline rank with its rank under alternative benchmark definitions.",
-                          "Smaller rank numbers indicate stronger benchmark-adjusted performance within year."
+                          "Look for schools that move up or down when additional context is included in the benchmark.",
+                          "Lower rank numbers indicate stronger benchmark-adjusted performance."
                         )
                       ),
                       
@@ -513,8 +566,8 @@ ui <- fluidPage(
                         title = "Rank movement",
                         output_ui = plotOutput("rank_heat", height = "90vh"),
                         caption = paste(
-                          "Shows how each selected baseline rank-band school's within-year rank changes",
-                          "across benchmark definitions."
+                          "Look for the schools with the largest rank movement across benchmark definitions.",
+                          "Large movement means the school looks different depending on what context is included."
                         )
                       ),
                       
@@ -522,8 +575,8 @@ ui <- fluidPage(
                         title = "Average rank movement",
                         output_ui = plotOutput("rank_shift_summary", height = "60vh"),
                         caption = paste(
-                          "Summarizes average absolute rank movement across all schools in the selected year",
-                          "when moving from the baseline model to each alternative benchmark definition."
+                          "Look for which alternative benchmark changes overall school rankings the most compared with the Baseline.",
+                          "This summary uses all schools in the selected year."
                         )
                       ),
                       
@@ -531,8 +584,8 @@ ui <- fluidPage(
                         title = "Scores and benchmark gaps",
                         output_ui = plotOutput("metric_facets", height = "70vh"),
                         caption = paste(
-                          "Compares benchmark scores, benchmark gaps, scaled benchmark gaps, and within-year ranks",
-                          "for the selected baseline rank-band schools across benchmark definitions."
+                          "Each line follows one school across the Baseline and Alternative models.",
+                          "Use this view to see whether benchmark scores, gaps, scaled gaps, and ranks stay stable or shift as context is added."
                         )
                       ),
                       
@@ -547,12 +600,11 @@ ui <- fluidPage(
                               class = "btn btn-default"
                             )
                           ),
-                          DTOutput("model_comp_dt")
+                          DTOutput("model_comp_dt", width = "100%")
                         ),
                         caption = paste(
-                          "Lists all schools in the selected year for the fitted benchmark models, including observed score,",
-                          "benchmark score, benchmark gap, scaled benchmark gap, within-year rank, and benchmark label.",
-                          "Benchmark labels are practical comparison labels, not statistical significance tests."
+                          "Use this table to filter, sort, export, and review all school-level results for the selected year.",
+                          "Benchmark labels are practical comparison labels, not significance tests."
                         )
                       )
                     )

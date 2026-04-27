@@ -28,35 +28,34 @@ DEFAULT_GROUP_TOGGLES <- c(
   na           = FALSE,
   units        = FALSE,
   county       = FALSE,
-  ell          = FALSE,
-  foster_care  = FALSE,
-  gender       = FALSE,
   geography    = FALSE,
-  homeless     = FALSE,
+  sped         = FALSE,
+  ell          = FALSE,
   immersion    = FALSE,
-  low_income   = FALSE,
-  migrant      = FALSE,
-  military_dep = FALSE,
+  gender       = FALSE,
   race         = FALSE,
-  sped         = FALSE
+  low_income   = FALSE,
+  foster_care  = FALSE,
+  homeless     = FALSE,
+  migrant      = FALSE,
+  military_dep = FALSE
 )
 
 # Labels shown in the UI
 GROUP_CHOICES <- c(
-  "Percent eligible students w/ missing scores" = "na",
-  "Student Unit Count"                          = "units",
+  "Grade size"                                  = "units",
   "County"                                      = "county",
-  "ELL"                                         = "ell",
-  "Foster care"                                 = "foster_care",
-  "Gender"                                      = "gender",
   "Wilmington"                                  = "geography",
-  "Homelessness"                                = "homeless",
+  "SPED Code"                                   = "sped",
+  "ELL"                                         = "ell",
   "Immersion"                                   = "immersion",
-  "Low income"                                  = "low_income",
-  "Migrant"                                     = "migrant",
-  "Military-connected"                          = "military_dep",
+  "Gender"                                      = "gender",
   "Race"                                        = "race",
-  "SPED Code"                                   = "sped"
+  "Low income"                                  = "low_income",
+  "Foster care"                                 = "foster_care",
+  "Homelessness"                                = "homeless",
+  "Migrant"                                     = "migrant",
+  "Military-connected"                          = "military_dep"
 )
 
 # Column patterns used to find model features in APP_DATA_FLAT.
@@ -73,23 +72,23 @@ FEATURE_GROUP_PATTERNS <- c(
   na           = "^na$",
   units        = "^units$",
   county       = "^County_Name\\.",
-  ell          = "^ELL\\.",
-  foster_care  = "^FosterCare\\.",
-  gender       = "^Gender\\.",
   geography    = "^Geography\\.",
-  homeless     = "^Homeless\\.",
+  sped         = "^SPEDCode\\.",
+  ell          = "^ELL\\.",
   immersion    = "^Immersion\\.",
-  low_income   = "^LowIncome\\.",
-  migrant      = "^Migrant\\.",
-  military_dep = "^MilitaryDep\\.",
+  gender       = "^Gender\\.",
   race         = "^RaceReportTitle\\.",
-  sped         = "^SPEDCode\\."
+  low_income   = "^LowIncome\\.",
+  foster_care  = "^FosterCare\\.",
+  homeless     = "^Homeless\\.",
+  migrant      = "^Migrant\\.",
+  military_dep = "^MilitaryDep\\."
 )
 
 # Default model definitions shown when the app first opens
 DEFAULT_MODEL_SELECTIONS <- list(
-  Baseline    = c("low_income", "ell", "sped"),
+  Baseline    = c("low_income"),
   `Alt 1`     = c("low_income", "ell"),
   `Alt 2`     = c("low_income", "sped"),
-  `Alt 3`     = c("low_income")
+  `Alt 3`     = c("low_income", "ell", "sped")
 )

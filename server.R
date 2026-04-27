@@ -381,32 +381,82 @@ server <- function(input, output, session) {
     )
     
     pct_display_cols <- intersect(pct_display_cols, names(dat))
+    name_wrap_cols <- intersect(c("District name", "School name"), names(dat))
     
     datatable(
       dat,
       rownames = FALSE,
       filter = "top",
       selection = "none",
-      class = "compact stripe hover nowrap",
-      extensions = c("FixedHeader", "FixedColumns"),
+      class = "compact stripe hover",
       options = list(
         pageLength = 10,
         lengthMenu = c(10, 25, 50, 100),
         autoWidth = FALSE,
         scrollX = TRUE,
-        fixedHeader = TRUE,
-        fixedColumns = list(leftColumns = 1),
+        scrollCollapse = TRUE,
         order = list(),
         columnDefs = list(
           list(className = "dt-left", targets = left_cols),
           list(className = "dt-center", targets = center_cols),
           list(className = "dt-right", targets = right_cols)
-        )
+        ),
+        initComplete = JS("
+      function(settings, json) {
+        var api = this.api();
+
+        function adjustModelCompTable() {
+          window.requestAnimationFrame(function() {
+            api.columns.adjust();
+
+            setTimeout(function() {
+              api.columns.adjust();
+            }, 100);
+
+            setTimeout(function() {
+              api.columns.adjust();
+            }, 300);
+
+            setTimeout(function() {
+              api.columns.adjust();
+            }, 700);
+          });
+        }
+
+        adjustModelCompTable();
+
+        $(document)
+          .off('shown.bs.tab.modelCompDt')
+          .on('shown.bs.tab.modelCompDt', 'a[data-toggle=\"tab\"]', function() {
+            adjustModelCompTable();
+          });
+
+        $(document)
+          .off('shiny:value.modelCompDt shiny:bound.modelCompDt')
+          .on('shiny:value.modelCompDt shiny:bound.modelCompDt', function() {
+            adjustModelCompTable();
+          });
+
+        $(window)
+          .off('resize.modelCompDt')
+          .on('resize.modelCompDt', function() {
+            adjustModelCompTable();
+          });
+      }
+    ")
       )
     ) %>%
       formatStyle(
-        columns = c("District name", "School name"),
+        columns = name_wrap_cols,
         `white-space` = "normal"
+      ) %>%
+      formatStyle(
+        "District name",
+        `min-width` = "180px"
+      ) %>%
+      formatStyle(
+        "School name",
+        `min-width` = "220px"
       ) %>%
       formatStyle(
         "Benchmark label",

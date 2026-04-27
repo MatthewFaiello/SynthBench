@@ -5,9 +5,9 @@ account: mattfaiello
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 17164971
-bundleId: 11901039
+bundleId: 11912612
 url: https://mattfaiello.shinyapps.io/SynthBench/
 version: 1
 asMultiple: FALSE
 asStatic: FALSE
-ignoredFiles: README.md|prep
+ignoredFiles: dev/smoke_test.R|docs/DATA_CONTRACT.md|docs/WORKFLOW_GUIDE.md|input_data/APP_DATA.rds|input_data/LEA_META.rds|README.md|prep
