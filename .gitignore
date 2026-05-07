@@ -3,8 +3,6 @@
 **/*.RData
 **/*.Ruserdata
 
-**/*.RDS
-**/*.rds
 **/*.csv
 
 .Rproj.user
