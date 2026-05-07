@@ -9,8 +9,8 @@
 
 # ---------------- file paths ---------------- #
 
-app_data_path <- file.path("input_data", "APP_DATA_flat.csv")
-lea_meta_path <- file.path("input_data", "LEA_META.csv")
+app_data_path <- file.path("input_data", "APP_DATA.rds")
+lea_meta_path <- file.path("input_data", "LEA_META.rds")
 
 
 # ---------------- input checks ---------------- #
@@ -36,17 +36,14 @@ if (!file.exists(lea_meta_path)) {
 
 # ---------------- load flat app data ---------------- #
 
-APP_DATA_FLAT <- readr::read_csv(
-  app_data_path,
-  col_types = readr::cols(
-    .default = readr::col_guess(),
-    model_key = readr::col_character(),
-    SchoolYear = readr::col_integer(),
-    SchoolCode = readr::col_character(),
-    ModelGrade = readr::col_character(),
-    AssessmentLabel = readr::col_character()
+APP_DATA_FLAT <- readRDS(app_data_path)
+
+if (!is.data.frame(APP_DATA_FLAT)) {
+  stop(
+    "APP_DATA_flat.rds must contain a data.frame or tibble.",
+    call. = FALSE
   )
-)
+}
 
 # If an older flat file is missing model_key, create it here.
 # Your updated organize.R should already create model_key, so this is a fallback.
@@ -75,21 +72,22 @@ APP_DATA_FLAT <- APP_DATA_FLAT %>%
 
 # ---------------- load flat school metadata ---------------- #
 
-LEA_META <- readr::read_csv(
-  lea_meta_path,
-  col_types = readr::cols(
-    .default = readr::col_guess(),
-    SchoolYear = readr::col_integer(),
-    SchoolCode = readr::col_character(),
-    ModelGrade = readr::col_character(),
-    DistrictName = readr::col_character(),
-    SchoolName = readr::col_character()
+LEA_META <- readRDS(lea_meta_path)
+
+if (!is.data.frame(LEA_META)) {
+  stop(
+    "LEA_META.rds must contain a data.frame or tibble.",
+    call. = FALSE
   )
-) %>%
+}
+
+LEA_META <- LEA_META %>%
   mutate(
     SchoolYear = as.integer(SchoolYear),
     SchoolCode = as.character(SchoolCode),
-    ModelGrade = as.character(ModelGrade)
+    ModelGrade = as.character(ModelGrade),
+    DistrictName = as.character(DistrictName),
+    SchoolName = as.character(SchoolName)
   )
 
 
@@ -119,8 +117,14 @@ if (length(missing_app_cols) > 0) {
 }
 
 duplicate_app_rows <- APP_DATA_FLAT %>%
-  count(SchoolYear, SchoolCode, ModelGrade, AssessmentLabel) %>%
-  filter(n > 1)
+  count(
+    SchoolYear,
+    SchoolCode,
+    ModelGrade,
+    AssessmentLabel,
+    name = "row_count"
+  ) %>%
+  filter(row_count > 1)
 
 if (nrow(duplicate_app_rows) > 0) {
   stop(
@@ -143,6 +147,22 @@ if (length(missing_meta_cols) > 0) {
   stop(
     "LEA_META is missing required columns: ",
     paste(missing_meta_cols, collapse = ", "),
+    call. = FALSE
+  )
+}
+
+duplicate_meta_rows <- LEA_META %>%
+  count(
+    SchoolYear,
+    SchoolCode,
+    ModelGrade,
+    name = "row_count"
+  ) %>%
+  filter(row_count > 1)
+
+if (nrow(duplicate_meta_rows) > 0) {
+  stop(
+    "LEA_META has duplicate rows by SchoolYear, SchoolCode, and ModelGrade.",
     call. = FALSE
   )
 }
@@ -176,11 +196,18 @@ APP_DATA <- setNames(
 OPTIONS <- APP_DATA_FLAT %>%
   group_by(model_key, AssessmentLabel, ModelGrade, SchoolYear) %>%
   summarise(
-    n_min = min(n, na.rm = TRUE),
-    n_max = max(n, na.rm = TRUE),
+    n_min = suppressWarnings(min(n, na.rm = TRUE)),
+    n_max = suppressWarnings(max(n, na.rm = TRUE)),
     .groups = "drop"
   ) %>%
-  distinct(model_key, AssessmentLabel, ModelGrade, SchoolYear, n_min, n_max)
+  distinct(
+    model_key,
+    AssessmentLabel,
+    ModelGrade,
+    SchoolYear,
+    n_min,
+    n_max
+  )
 
 SCOPE_1_CHOICES <- OPTIONS %>%
   distinct(AssessmentLabel) %>%

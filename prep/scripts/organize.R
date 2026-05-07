@@ -391,5 +391,5 @@ write_csv(app_data_flat, file.path(output_dir, "APP_DATA_flat.csv"))
 write_csv(lea_meta_flat, file.path(output_dir, "LEA_META.csv"))
 
 # Legacy app inputs, kept until the app is fully switched to flat data
-write_rds(training_list, file.path(output_dir, "APP_DATA.rds"))
+write_rds(app_data_flat, file.path(output_dir, "APP_DATA.rds"))
 write_rds(lea_meta_flat, file.path(output_dir, "LEA_META.rds"))
