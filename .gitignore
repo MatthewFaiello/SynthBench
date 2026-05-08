@@ -1,9 +1,36 @@
-**/.Rproj.user/
-**/*.Rhistory
-**/*.RData
-**/*.Ruserdata
+# R / RStudio local state
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
 
-**/*.csv
+# Posit / editor local files
+.posit/
+.positai/
 
-.Rproj.user
-.positai
+# shinyapps.io deployment metadata; not needed for open-source Shiny Server
+rsconnect/
+
+# Secrets / local environment
+.Renviron
+.env
+*.pem
+*.key
+
+# Logs / temp / cache
+*.log
+tmp/
+temp/
+cache/
+.Rcache/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Ignore CSV files everywhere
+*.csv
+
+# Make sure RDS files are not ignored
+!*.rds
+!*.RDS
